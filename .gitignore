@@ -1,5 +1,6 @@
 /local_data
-/data
+/data/00_raw
+/data/01_intermediate
 /figures/figures_output
 .Rproj.user
 .Rhistory.venv/
@@ -15,7 +16,6 @@
 *.wbk
 
 # Ignore data files (adjust extensions as needed)
-*.csv
 *.json
 *.xml
 *.sqlite
