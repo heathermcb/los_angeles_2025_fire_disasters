@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------#
 #-------------Los Angeles Wildfire poverty-exposure census tracts -------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:1/20/25-----------------------------------------#
+#-------------------------Date:1/21/25-----------------------------------------#
 #-------------------------Lara Schwarz-----------------------------------------#
 #------------------------------------------------------------------------------#
 ## Purpose: Add poverty variable and los angeles boundary to the exposure data 
@@ -10,13 +10,8 @@
 #  (1) <20km + low poverty; (2) <20km + high poverty; (3) LA not <20km + low pov; (4) LA not <20km + high pov; (5) not LA not <20 km + low pov; (6) not LA  not <20km + high pov
 
 # load packages
-library(readr)
-library(dplyr)
-library(tidycensus)
-library(sf)
-library(tigris)
-library(tidyr)
-library(stringr)
+if (!requireNamespace('pacman', quietly = TRUE)){install.packages('pacman')}
+pacman::p_load(sf, readr, dplyr, tidycensus, tigris, tidyr, stringr)
 
 ### Data Prep
 
@@ -67,17 +62,15 @@ acs_data <- get_acs(
 )
 
 # Create a dataset where each variables is a row
-acs_data_collapsed <- acs_data %>%
-  group_by(GEOID, NAME) %>%
-  summarize(
-    C17002_001 = sum(estimate[variable == "C17002_001"], na.rm = TRUE),
-    C17002_002 = sum(estimate[variable == "C17002_002"], na.rm = TRUE),
-    C17002_003 = sum(estimate[variable == "C17002_003"], na.rm = TRUE),
-    .groups = "drop"
+acs_data_wide <- acs_data %>%
+  pivot_wider(
+    id_cols = c(GEOID, NAME),  # Make sure each row is a GEOID-NAME combination
+    names_from = variable,     # Create a separate column for each variable
+    values_from = estimate     # Fill the new columns with estimates
   )
 
 # percentage of population for which the ratio of income to poverty is under 1 
-acs_data_collapsed <- acs_data_collapsed %>%
+acs_data_wide <- acs_data_wide %>%
   mutate(
     pct_below_poverty = (C17002_002 + C17002_003) / C17002_001) 
 
@@ -97,7 +90,7 @@ ct_exposures_2025_01_17 <- merge(ct_exposures_2025_01_17, census_crosswalk[, c("
 
 # Merge in the poverty data from census
 ct_exposures_2025_01_17_poverty <- merge(ct_exposures_2025_01_17, 
-                    acs_data_collapsed[, c("GEOID", "pct_below_poverty")], 
+                    acs_data_wide[, c("GEOID", "pct_below_poverty")], 
                      by.x = "GEOID_TRACT_20",  # Column in ct_exposures_2025_01_17
                      by.y = "GEOID", all=TRUE)   # Column in census_poverty_data
 
@@ -127,9 +120,9 @@ ct_exposures_2025_01_17_exposure_data <- ct_exposures_2025_01_17_poverty %>%
     # Exposure variable for census tracts in wildfire buffer and low poverty
     high_exposure_low_poverty = ifelse(exposed_20buffer == 1 & poverty == 0, 1, 0),
     # Exposure variable for census tracts outside of wildfire burn zone and in LA County with high poverty
-    less_exposed_high_poverty = ifelse( exposed_la == 1 & exposed_20buffer == 0 & poverty == 1, 1, 0),
+    less_exposed_high_poverty = ifelse( exposed_la == 1  & poverty == 1, 1, 0),
     # Exposure variable for census tracts outside of wildfire burn zone and in LA County with low poverty
-    less_exposed_low_poverty = ifelse(exposed_la == 1 & exposed_20buffer == 0 & poverty == 0, 1, 0),
+    less_exposed_low_poverty = ifelse(exposed_la == 1  & poverty == 0, 1, 0),
     # Exposure variable for census tracts outside Los Angeles County and wildfire buffer and high poverty (poverty == 1)
     least_exposed_high_poverty = ifelse(least_exposed == 1 & poverty == 1, 1, 0),
     # Exposure variable for census tracts in Los Angeles County (exposed_20buffer == 1) and low poverty (poverty == 0)
