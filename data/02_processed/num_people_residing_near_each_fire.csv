@@ -1,0 +1,15 @@
+,ID_climate_hazard,num_people_affected,buffer_dist
+0,eaton,61588.0,500 m
+1,lidia,61.0,500 m
+2,sunset,6509.0,500 m
+3,hurst,3673.0,500 m
+4,archer,1471.0,500 m
+5,kenneth,4759.0,500 m
+6,palisades,34078.0,500 m
+0,eaton,313041.0,5 km
+1,lidia,1656.0,5 km
+2,sunset,314222.0,5 km
+3,archer___hurst,145222.0,5 km
+4,palisades___kenneth,374712.0,5 km
+0,lidia,9759.0,10 km
+1,palisades___sunset___kenneth___eaton___archer___hurst,3913478.0,10 km
