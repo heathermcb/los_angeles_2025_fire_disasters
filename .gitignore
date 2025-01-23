@@ -5,6 +5,8 @@
 .Rproj.user
 .Rhistory.venv/
 /lafires
+/01_calfire_boundaries
+
 
 # Ignore temporary files created by Word
 ~$*.docx
