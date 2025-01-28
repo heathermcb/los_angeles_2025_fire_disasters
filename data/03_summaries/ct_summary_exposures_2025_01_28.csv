@@ -1,0 +1,5 @@
+buffer_distance_km,num_exposed_tracts,pct_exposed
+0.5,64,1.31
+1.0,70,1.43
+10.0,308,6.31
+20.0,758,15.54
