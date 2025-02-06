@@ -1,6 +1,7 @@
 /local_data
 /data/00_raw
 /data/01_intermediate
+/03_output
 /figures/figures_output
 .Rproj.user
 .Rhistory.venv/
