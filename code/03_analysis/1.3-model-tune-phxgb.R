@@ -17,6 +17,11 @@ rm(list = ls())
 set.seed(0112358)
 pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc)
 
+## nina directories
+#inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
+#outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
+#mod <- "~/Desktop/projects/casey cohort/LA-wildfires/data/model-output/"
+
 # ensure consistent numeric precision ----------------------------------------------
 options(digits = 7)
 options(scipen = 999)
@@ -43,11 +48,15 @@ datasets <- c("df_2022_2023_OP_high")
 
 # List of encounter types to loop through
 encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc_resp")
 
 # Iterate over each dataset
 for (dataset_name in datasets) {
 # Iterate over each dataset
-df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv")
+df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") #lara will toggle on 
+  
+#df_train_test <-  paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
+
 df_train_test <- read.csv(here(df_train_test)) %>%
   mutate(date = as.Date(date))
 
@@ -56,7 +65,7 @@ for (encounter_type in encounter_types) {
   
   # Subset the dataset to include only date and the current encounter type variable
   df_train_test_encounter <- df_train_test %>%
-    select(date, encounter_type)  # Dynamically select the encounter type column
+    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad)  # Dynamically select the encounter type column
   
 # split data into training and test sets -------------------------------------
 set.seed(0112358)
@@ -73,7 +82,7 @@ resamples_kfold <- training(splits) |>
     time_series_cv(
     assess = "4 days",     # Length of each assessment period # this was 4
    # initial = "5 years",     # Initial training period
-    slice_limit = 3,        # Number of slices to create #this was 3 
+    slice_limit = 3,        # Number of slices to create #this was 3 # we probably want this larger, maybe at least 10
     cumulative = TRUE       # Use expanding window
   )
 
@@ -81,11 +90,13 @@ resamples_kfold <- training(splits) |>
   # recipe for modeling ---------------------------------------------------
   # Construct formula dynamically
   formula <- as.formula(paste(encounter_type, "~ ."))
+  print(formula)
   
 # recipe for modeling ---------------------------------------------------
 rec_obj_phxgb <- recipe(formula, training(splits)) |>
     # Time series features 
     step_timeseries_signature(date) |>
+    step_holiday(date, holidays = timeDate::listHolidays("US")) |>
     # Lags
     #step_lag(pm25_diff, lag = 1:14) |>
 
@@ -153,7 +164,7 @@ grid_phxgb_tune <- grid_space_filling(
       loss_reduction = loss_reduction(range = c(-50, 5), trans = log10_trans()),
       stop_iter = stop_iter(range = c(5L, 100L), trans = NULL)
     ),
-  size = 30
+  size = 100 # this was at 30 but should probably be larger 
 )
 
 # # Claud's code
@@ -258,6 +269,7 @@ print(best_params)
 # save the results ---------------------------------------------------
 #rm(df_train_test)
 #save.image(here("Outputs", "1.3-model-tune-phxgb-final.RData"))
-save.image(file = here("Outputs", paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")))
+save.image(file = here("Outputs", paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData"))) # lara will toggle on
+#save.image(file = here(mod, paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")))
 }  # End of encounter type loop
 }  # End of dataset loop
