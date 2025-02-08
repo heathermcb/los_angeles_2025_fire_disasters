@@ -9,8 +9,14 @@
 if (!requireNamespace('pacman', quietly = TRUE)) {install.packages('pacman')}
 pacman::p_load(readr, dplyr, tidyr, purrr, lubridate)
 
+# directories
+#inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
+#outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
+
+
 # upload dataset
-df <- read_csv("data/01_raw/ENC_EXP_DAILY_01302025.csv")
+df <- read_csv("data/01_raw/ENC_EXP_DAILY_01302025.csv") lara will toggle on
+#df <- read_csv(paste0(inp,"ENC_EXP_DAILY_01302025.csv"))
 
 # Define exposure levels based on 'exp_pov'
 df <- df %>%
@@ -28,6 +34,17 @@ df <- df %>%
   select(-exp_pov) %>%  # Remove the 'exp_pov' variable
   group_by(exp_level, enc_type, encounter_dt) %>%
   summarise(across(everything(), sum, na.rm = TRUE))
+
+df <- df %>%
+  mutate(encounter_dt = mdy(encounter_dt))
+
+# add meterological covariates
+cov <- read_csv(paste0(outp,"gridmet_cov_exp_level.csv")) %>%
+  mutate(encounter_dt = date) %>%
+  select(-date)
+
+df <- full_join(df, cov) %>%
+  drop_na(enc_type)
 
 # Define time periods
 time_periods <- list(
@@ -53,7 +70,8 @@ for (period_name in names(time_periods)) {
   # Split by encounter type and exposure level for each time period
   period_split_data <- period_data %>%
     select(enc_type, exp_level, encounter_dt, num_enc, 
-           num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury) %>%
+           num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
+           pr, tmmx, tmmn, rmin, rmax, vs, srad) %>%
     group_by(enc_type, exp_level) %>%
     nest() %>%
     mutate(dataset_name = paste0("df_", period_name, "_", enc_type, "_", exp_level))
@@ -81,13 +99,15 @@ for (period_name in names(time_periods)) {
       arrange(date) %>%
       # Apply the filtering condition for train-test split
       filter(month_day < "01-07" | month_day > "01-31") %>%
-      select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date)
+      select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
+             pr, tmmx, tmmn, rmin, rmax, vs, srad)
     
     # Dynamically generate the file name to save the df_train_test CSV
-    output_filename_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv")
+ #   output_filename_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") # lara will toggle on
+    output_filename_train_test <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
     
     # Save the df_train_test dataset as a CSV file
-    write.csv(df_train_test, output_filename_train_test, row.names = FALSE)
+    write.csv(df_train_test, output_filename_train_test, row.names = FALSE) 
     
     # Create df_all_cases dataset ----------------
     df_all_cases <- dataset %>%
@@ -100,10 +120,12 @@ for (period_name in names(time_periods)) {
       filter(!(month_day >= "01-27" & month_day <= "02-01")) %>%
       # You could uncomment the next line if you want a different filter condition
       # filter(month_day < "01-07" | month_day > "01-31") %>%
-      select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date)
+      select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
+             pr, tmmx, tmmn, rmin, rmax, vs, srad)
     
     # Dynamically generate the file name to save the df_all_cases CSV
-    output_filename_all_cases <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv")
+    output_filename_all_cases <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
+  #  output_filename_all_cases <- paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
     
     # Save the df_all_cases dataset as a CSV file
     write.csv(df_all_cases, output_filename_all_cases, row.names = FALSE)

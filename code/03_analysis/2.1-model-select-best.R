@@ -15,7 +15,12 @@
 # load libraries ----------------------------------------------------------------
 rm(list = ls())
 set.seed(0112358)
-pacman::p_load(here, tidymodels, tidyverse, modeltime)
+pacman::p_load(here, tidymodels, tidyverse, modeltime, dplyr)
+
+## nina directories
+#inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
+#outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
+#mod <- "~/Desktop/projects/casey cohort/LA-wildfires/data/model-output/"
 
 # List of dataset names
 datasets <- c("df_2022_2023_OP_high")
@@ -37,26 +42,30 @@ datasets <- c("df_2022_2023_OP_high")
 # )
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp",  "num_enc_injury") 
+encounter_types <- c("num_enc_resp", "num_enc","num_enc_cardio", "num_enc_resp",  "num_enc_injury") 
 
 #"num_enc_neuro", # Not running well  
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
+  # Loop through each encounter type and create a recipe
+  for (encounter_type in encounter_types) {
+    
 
 #dataset<-get(dataset_name)
 
 # load data ---------------------------------------------------
-preintervention_filename <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv")
-df_preintervention <- read.csv(here(preintervention_filename)) %>%
-  mutate(date = as.Date(date))
-
-all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv")
-df_all_cases <- read.csv(here(all_cases_filename)) %>%
-  mutate(date = as.Date(date))
-
-# Loop through each encounter type and create a recipe
-for (encounter_type in encounter_types) {
+   preintervention_filename <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") # lara will toggle on
+  #preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
+  df_preintervention <- read.csv(here(preintervention_filename)) %>%
+    mutate(date = as.Date(date)) %>%
+    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad)  # Dynamically select the encounter type column
+  
+   all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
+  #all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
+  df_all_cases <- read.csv(here(all_cases_filename)) %>%
+    mutate(date = as.Date(date)) %>%
+    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad)  # Dynamically select the encounter type column
   
 
 # load tuned models ---------------------------------------------------
@@ -73,8 +82,10 @@ for (encounter_type in encounter_types) {
 
 # Load Prophet-XGBoost model
 #rm(list = ls(pattern = "num_enc_neuro"))
-phxgb_filename <- paste0("Outputs/", "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")
-load(here(phxgb_filename))
+ phxgb_filename <- paste0("Outputs/", "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData") #lara will toggle on
+ #phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+  
+ load(here(phxgb_filename))
 print(paste("Loaded Prophet-XGBoost model for", encounter_type, dataset_name))
 
 # step-1: select best models ---------------------------------------------------
@@ -117,7 +128,9 @@ model_tbl_best_all <- modeltime_table(
 output_filename <- paste0("2.1-model-select-best_", dataset_name,"_", encounter_type, ".rds")
 
 # Save the model_tbl_best_all to an RDS file for the current dataset
-model_tbl_best_all |> saveRDS(here("Outputs", output_filename))
+model_tbl_best_all |> saveRDS(here("Outputs", output_filename)) #lara will toggle on
+#model_tbl_best_all |> saveRDS(here(mod, output_filename)) 
+
 
 }
 }
