@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-------------------------Date:2/11/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -35,7 +35,8 @@ options(scipen = 999)
 # Loop through datasets --------------------------------------------------------
 
 # List of dataset names
-datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
+datasets<-c("df_Virtual_high")
+#datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
 
 # # datasets <- c(
 #   #"df_2022_2023_ED_high",
@@ -53,8 +54,8 @@ datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
 # )
 
 # List of encounter types to loop through
-#encounter_types <- c("num_enc")
-encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+encounter_types <- c("num_enc")
+#encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
 # Iterate over each dataset
 for (dataset_name in datasets) {
   # Iterate over each dataset
@@ -70,15 +71,15 @@ for (dataset_name in datasets) {
     
     # Subset the dataset to include only date and the current encounter type variable
     df_train_test_encounter <- df_train_test %>%
-      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7) %>%
-      mutate(across(all_of(encounter_type), as.integer))
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+      mutate(across(where(is.numeric), as.integer)) %>%
+      arrange(date)
     
 # split data into training and test sets -------------------------------------
 set.seed(0112358)
 splits <- df_train_test_encounter |>
   time_series_split(
-    #assess = "0 days", 
-    assess = "40 days", 
+    assess = "75 days", 
     cumulative = TRUE,
     date_var = date
   )
@@ -87,7 +88,7 @@ splits <- df_train_test_encounter |>
 set.seed(0112358)
 resamples_kfold <- training(splits) |> 
     time_series_cv(
-    assess = "7 days",     # Length of each assessment period # this was 4
+    assess = "30 days",     # Length of each assessment period # this was 4
    # initial = "5 years",     # Initial training period
     slice_limit = 8,        # Number of slices to create #this was 3 # we probably want this larger, maybe at least 10
     cumulative = TRUE       # Use expanding window
@@ -103,17 +104,17 @@ resamples_kfold <- training(splits) |>
 rec_obj_phxgb <- recipe(formula, training(splits)) |>
     # Time series features 
     step_timeseries_signature(date) |>
-    step_holiday(date, holidays = timeDate::listHolidays("US")) |>
+   step_holiday(date, holidays = timeDate::listHolidays("US")) |>
     # Lags
-    step_lag(tmmx, lag = 1:3) |>
+    #step_lag(tmmx, lag = 1:3) |>
 
     #Basic seasonal components
-   # step_fourier(date, period = 7, K = 2) |>
+    #step_fourier(date, period = 7, K = 2) |>
 
     # cleaning steps
     step_rm(matches("(.iso$)|(.xts$)")) |>
     #remove year from model since there's no variation
-    step_zv(date_year) |>
+    #step_zv(date_year) |>
     # step_rm(matches("county")) |>
     step_normalize(matches("(index.num$)|(_year$)")) |>
     step_dummy(all_nominal())
@@ -127,19 +128,19 @@ model_phxgb_tune <- prophet_boost(
                       #growth = tune(),
                       growth = "linear",
                       
-                     #changepoint_range = tune(),
-                      changepoint_num=0,
-                      prior_scale_holidays=tune(),
-                      seasonality_yearly = tune(), 
-                      prior_scale_changepoints = tune(),
-                      prior_scale_seasonality = tune(), # this was commented out
-                      #xgboost  
-                      mtry = tune(),
-                      min_n = tune(),
-                      tree_depth = tune(),
-                      learn_rate = tune(),
-                      loss_reduction = tune(),
-                      stop_iter = tune()
+                      #changepoint_range = tune(),
+                     #  changepoint_num=0,
+                     #  #prior_scale_holidays=tune(),
+                     #  seasonality_yearly = tune(), 
+                     #  prior_scale_changepoints = tune(),
+                     #  prior_scale_seasonality = tune(), # this was commented out
+                     #  #xgboost  
+                     #  mtry = tune(),
+                     #  min_n = tune(),
+                     #  tree_depth = tune(),
+                     #  learn_rate = tune(),
+                     #  loss_reduction = tune(),
+                       stop_iter = tune()
                       ) |>
                 set_engine("prophet_xgboost",
                 set.seed = 0112358)
@@ -153,26 +154,26 @@ grid_phxgb_tune <- grid_space_filling(
       # Prophet parameters
      # growth = growth(values = c("linear")),
   #changepoint_range = changepoint_range(range = c(0.001, 0.5), trans = NULL), # Wider range changed the range
- seasonality_yearly = seasonality_yearly(values = c(TRUE)), 
- prior_scale_changepoints = prior_scale_changepoints(
-   range = c(0.01, 0.5),
-   trans = NULL
- ),
-    prior_scale_seasonality = prior_scale_seasonality(
-      range = c(0.001, 5.0),
-      trans = NULL
+ # seasonality_yearly = seasonality_yearly(values = c(TRUE)), 
+ # prior_scale_changepoints = prior_scale_changepoints(
+ #   range = c(0.01, 0.5),
+ #   trans = NULL
+ # ),
+ #    prior_scale_seasonality = prior_scale_seasonality(
+ #      range = c(0.001, 5.0),
+ #      trans = NULL
+ #    ),
+ #    # prior_scale_holidays= prior_scale_holidays(range = c(-3, 2), trans = log10_trans()),
+ #    
+ #      # XGBoost parameters
+ #      mtry = mtry(range = c(1, 50), trans = NULL),
+ #      min_n = min_n(range = c(1L, 70L), trans = NULL),
+ #      tree_depth = tree_depth(range = c(1, 70), trans = NULL),
+ #      learn_rate = learn_rate(range = c(0.001, 0.7), trans = NULL),
+ #      loss_reduction = loss_reduction(range = c(-50, 5), trans = log10_trans()),
+       stop_iter = stop_iter(range = c(5L, 100L), trans = NULL)
     ),
-    prior_scale_holidays= prior_scale_holidays(range = c(-3, 2), trans = log10_trans()),
-    
-      # XGBoost parameters
-      mtry = mtry(range = c(1, 50), trans = NULL),
-      min_n = min_n(range = c(1L, 70L), trans = NULL),
-      tree_depth = tree_depth(range = c(1, 70), trans = NULL),
-      learn_rate = learn_rate(range = c(0.001, 0.7), trans = NULL),
-      loss_reduction = loss_reduction(range = c(-50, 5), trans = log10_trans()),
-      stop_iter = stop_iter(range = c(5L, 100L), trans = NULL)
-    ),
-  size = 150 # this was at 30 but should probably be larger 
+  size = 100 # this was at 30 but should probably be larger 
 )
 
 
