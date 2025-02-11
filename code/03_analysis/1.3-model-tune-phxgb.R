@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/7/25------------------------------------------#
+#-------------------------Date:2/10/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -22,16 +22,22 @@ pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc)
 #outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
 #mod <- "~/Desktop/projects/casey cohort/LA-wildfires/data/model-output/"
 
+# Lara directories
+inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+
+
 # ensure consistent numeric precision ----------------------------------------------
 options(digits = 7)
 options(scipen = 999)
 
 # Loop through datasets --------------------------------------------------------
-# List of dataset names
-datasets <- c("df_2022_2023_OP_high")
-#, "df_2023_2024_OP_high", "df_2024_2025_OP_high")
 
-# datasets <- c(
+# List of dataset names
+datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
+
+# # datasets <- c(
 #   #"df_2022_2023_ED_high",
 #   "df_2023_2024_ED_high",
 #   "df_2024_2025_ED_high",
@@ -47,31 +53,32 @@ datasets <- c("df_2022_2023_OP_high")
 # )
 
 # List of encounter types to loop through
+#encounter_types <- c("num_enc")
 encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
-#encounter_types <- c("num_enc_resp")
-
 # Iterate over each dataset
 for (dataset_name in datasets) {
-# Iterate over each dataset
-df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") #lara will toggle on 
+  # Iterate over each dataset
+  #df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") #lara will toggle on 
   
-#df_train_test <-  paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
-
-df_train_test <- read.csv(here(df_train_test)) %>%
-  mutate(date = as.Date(date))
-
-# Loop through each encounter type and create a recipe
-for (encounter_type in encounter_types) {
+  df_train_test <-  paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
   
-  # Subset the dataset to include only date and the current encounter type variable
-  df_train_test_encounter <- df_train_test %>%
-    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad)  # Dynamically select the encounter type column
+  df_train_test <- read.csv(here(df_train_test)) %>%
+    mutate(date = as.Date(date))
   
+  # Loop through each encounter type and create a recipe
+  for (encounter_type in encounter_types) {
+    
+    # Subset the dataset to include only date and the current encounter type variable
+    df_train_test_encounter <- df_train_test %>%
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7) %>%
+      mutate(across(all_of(encounter_type), as.integer))
+    
 # split data into training and test sets -------------------------------------
 set.seed(0112358)
 splits <- df_train_test_encounter |>
   time_series_split(
-    assess = "10 days",
+    #assess = "0 days", 
+    assess = "40 days", 
     cumulative = TRUE,
     date_var = date
   )
@@ -80,9 +87,9 @@ splits <- df_train_test_encounter |>
 set.seed(0112358)
 resamples_kfold <- training(splits) |> 
     time_series_cv(
-    assess = "4 days",     # Length of each assessment period # this was 4
+    assess = "7 days",     # Length of each assessment period # this was 4
    # initial = "5 years",     # Initial training period
-    slice_limit = 3,        # Number of slices to create #this was 3 # we probably want this larger, maybe at least 10
+    slice_limit = 8,        # Number of slices to create #this was 3 # we probably want this larger, maybe at least 10
     cumulative = TRUE       # Use expanding window
   )
 
@@ -98,11 +105,11 @@ rec_obj_phxgb <- recipe(formula, training(splits)) |>
     step_timeseries_signature(date) |>
     step_holiday(date, holidays = timeDate::listHolidays("US")) |>
     # Lags
-    #step_lag(pm25_diff, lag = 1:14) |>
+    step_lag(tmmx, lag = 1:3) |>
 
-    # Basic seasonal components
-  # step_fourier(date, period = 7, K = 2) |>   
-    
+    #Basic seasonal components
+   # step_fourier(date, period = 7, K = 2) |>
+
     # cleaning steps
     step_rm(matches("(.iso$)|(.xts$)")) |>
     #remove year from model since there's no variation
@@ -120,12 +127,12 @@ model_phxgb_tune <- prophet_boost(
                       #growth = tune(),
                       growth = "linear",
                       
-                      #changepoint_range = tune(),
+                     #changepoint_range = tune(),
                       changepoint_num=0,
-                     
-                      #seasonality_yearly = tune(), removed
-                      # prior_scale_changepoints = tune(),
-                      # prior_scale_seasonality = tune(), # this was commented out
+                      prior_scale_holidays=tune(),
+                      seasonality_yearly = tune(), 
+                      prior_scale_changepoints = tune(),
+                      prior_scale_seasonality = tune(), # this was commented out
                       #xgboost  
                       mtry = tune(),
                       min_n = tune(),
@@ -145,17 +152,18 @@ grid_phxgb_tune <- grid_space_filling(
     update(
       # Prophet parameters
      # growth = growth(values = c("linear")),
-    #changepoint_range = changepoint_range(range = c(0.01, 0.1), trans = NULL), # Wider range changed the range
-      #seasonality_yearly = seasonality_yearly(values = c(TRUE)), removed
-      # prior_scale_changepoints = prior_scale_changepoints(
-      #   range = c(0.01, 0.5),
-      #   trans = NULL
-      # ),
-      # prior_scale_seasonality = prior_scale_seasonality( 
-      #   range = c(0.001, 5.0),
-      #   trans = NULL
-      # ),
-
+  #changepoint_range = changepoint_range(range = c(0.001, 0.5), trans = NULL), # Wider range changed the range
+ seasonality_yearly = seasonality_yearly(values = c(TRUE)), 
+ prior_scale_changepoints = prior_scale_changepoints(
+   range = c(0.01, 0.5),
+   trans = NULL
+ ),
+    prior_scale_seasonality = prior_scale_seasonality(
+      range = c(0.001, 5.0),
+      trans = NULL
+    ),
+    prior_scale_holidays= prior_scale_holidays(range = c(-3, 2), trans = log10_trans()),
+    
       # XGBoost parameters
       mtry = mtry(range = c(1, 50), trans = NULL),
       min_n = min_n(range = c(1L, 70L), trans = NULL),
@@ -164,79 +172,10 @@ grid_phxgb_tune <- grid_space_filling(
       loss_reduction = loss_reduction(range = c(-50, 5), trans = log10_trans()),
       stop_iter = stop_iter(range = c(5L, 100L), trans = NULL)
     ),
-  size = 100 # this was at 30 but should probably be larger 
+  size = 150 # this was at 30 but should probably be larger 
 )
 
-# # Claud's code
-# # Model specification
-# model_phxgb_tune <- prophet_boost(
-#   mode = "regression",
-#   growth = "linear",
-#   changepoint_num = 0,
-#   
-#   # XGBoost parameters to tune
-#   mtry = tune(),
-#   min_n = tune(),
-#   tree_depth = tune(),
-#   learn_rate = tune(),
-#   loss_reduction = tune(),
-#   stop_iter = tune(),
-#   sample_size = tune(),
-#   trees = tune()
-# ) |>
-#   set_engine("prophet_xgboost", set.seed = 0112358)
-# 
-# # Define much more conservative tuning grid
-# grid_phxgb_tune <- grid_space_filling(
-#   extract_parameter_set_dials(model_phxgb_tune) |>
-#     update(
-#       # Significantly reduced tree complexity
-#       tree_depth = tree_depth(range = c(2, 6), trans = NULL),  # Much shallower trees
-#       
-#       # Increased minimum observations needed
-#       min_n = min_n(range = c(10, 50), trans = NULL),  # Require more observations per leaf
-#       
-#       # More conservative learning parameters
-#       learn_rate = learn_rate(range = c(0.001, 0.01), trans = NULL),  # Much slower learning
-#       loss_reduction = loss_reduction(range = c(1, 10), trans = log10_trans()),  # More aggressive pruning
-#       
-#       # Sampling strategy for diversity
-#       sample_size = sample_prop(range = c(0.5, 0.8)),  # More aggressive subsampling
-#       mtry = mtry(range = c(2, 5), trans = NULL),  # More feature sampling
-#       
-#       # Fewer trees with earlier stopping
-#       trees = trees(range = c(50, 500)),  # Reduced maximum trees
-#       stop_iter = stop_iter(range = c(5L, 20L), trans = NULL)  # Earlier stopping
-#     ),
-#   size = 30  # Reduced grid size for faster tuning
-# )
-# 
-# # Stricter control parameters
-# control_params <- list(
-#   early_stopping_rounds = 5,  # Stop earlier if no improvement
-#   validation = 0.25  # Increased validation set
-# )
 
-
-#Nina's code 
-
-# grid_phxgb_tune <- grid_space_filling(
-#   extract_parameter_set_dials(model_phxgb_tune) %>%
-#     update(
-#       growth             = growth(values = c("linear")),
-#       changepoint_range  = changepoint_range(range = c(0.5, 0.8), trans = NULL),
-#       #seasonality_yearly = seasonality_yearly(values = c(TRUE, FALSE)),
-#       prior_scale_changepoints = prior_scale_changepoints(range = c(0.01, 0.5)),
-#       prior_scale_seasonality  = prior_scale_seasonality(range = c(0.08, 3.5)),
-#       mtry               = mtry(range = c(6, 12)),
-#       min_n              = min_n(range = c(2L, 15L)),
-#       tree_depth         = tree_depth(range = c(7, 15)),
-#       learn_rate         = learn_rate(range = c(0.1, 0.5)),
-#       loss_reduction     = loss_reduction(range = c(-10, 1.5), trans = log10_trans()),
-#       stop_iter          = stop_iter(range = c(5L, 15L))
-#     ),
-#   size = 20
-# )
 # workflow for tuning ---------------------------------------------------
 wflw_phxgb_tune <- workflow() |>
                     add_model(model_phxgb_tune) |>
@@ -245,6 +184,8 @@ wflw_phxgb_tune <- workflow() |>
 # model tuning ---------------------------------------------------
 tic(quite = FALSE)
 set.seed(0112358)
+suppressWarnings({
+  
 tune_results_phxgb <- wflw_phxgb_tune |>
   tune_grid(
     resamples = resamples_kfold,
@@ -261,6 +202,7 @@ tune_results_phxgb <- wflw_phxgb_tune |>
       ),
       metrics = metric_set(rmse, rsq)
   )
+})
 toc() 
 
 # Added
@@ -269,7 +211,7 @@ print(best_params)
 # save the results ---------------------------------------------------
 #rm(df_train_test)
 #save.image(here("Outputs", "1.3-model-tune-phxgb-final.RData"))
-save.image(file = here("Outputs", paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData"))) # lara will toggle on
-#save.image(file = here(mod, paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")))
+#save.image(file = here("Outputs", paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData"))) # lara will toggle on
+save.image(file = here(mod, paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")))
 }  # End of encounter type loop
 }  # End of dataset loop

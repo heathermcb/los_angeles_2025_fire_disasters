@@ -1,6 +1,6 @@
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/6/25------------------------------------------#
+#-------------------------Date:2/10/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -15,11 +15,16 @@ rm(list = ls())
 set.seed(0112358)
 pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc)
 
-# Loop through datasets --------------------------------------------------------
-# List of dataset names
-datasets <- c("df_2022_2023_OP_high")
-              #, "df_2023_2024_OP_high", "df_2024_2025_OP_high")
+# Lara directories
+inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
+# List of dataset names
+# used for testing
+datasets <- c("df_2022_2023_OP_high", "df_2023_2024_OP_high", "df_2024_2025_OP_high", "df_2022_2023_Virtual_high",
+              "df_2023_2024_Virtual_high",   "df_2024_2025_Virtual_high")
+# datasets <- c("df_2022_2023_OP_high")
 # datasets <- c(
 #   #"df_2022_2023_ED_high",
 #   "df_2023_2024_ED_high",
@@ -36,17 +41,26 @@ datasets <- c("df_2022_2023_OP_high")
 # )
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
-                     #, "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
-
+# encounter_types <- c("num_enc")
+encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
 # Iterate over each dataset
 for (dataset_name in datasets) {
-  # load data ----------------
-#df_train_test <- read.csv(here("Data", "df-train-test-sf.csv")) |> mutate(date = as.Date(date))
-  df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv")
+  # Iterate over each dataset
+  #df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") #lara will toggle on 
+  
+  df_train_test <-  paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
+  
   df_train_test <- read.csv(here(df_train_test)) %>%
     mutate(date = as.Date(date))
-
+  
+  # Loop through each encounter type and create a recipe
+  for (encounter_type in encounter_types) {
+    
+    # Subset the dataset to include only date and the current encounter type variable
+    df_train_test_encounter <- df_train_test %>%
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad) %>%
+      mutate(across(all_of(encounter_type), as.numeric))
+    
 # split data into training and test sets -------------------------------------
 set.seed(0112358)
 splits <- df_train_test |>
@@ -71,13 +85,8 @@ resamples_kfold <- training(splits) |>
     cumulative = TRUE       # Use expanding window
   )
 
-# Loop through each encounter type and create a recipe
-for (encounter_type in encounter_types) {
-  
-  # Subset the dataset to include only date and the current encounter type variable
-  df_train_test_encounter <- df_train_test %>%
-    select(date, encounter_type)  # Dynamically select the encounter type column
-  
+
+ 
 # recipe for modeling ---------------------------------------------------
   # Construct formula dynamically
   formula <- as.formula(paste(encounter_type, "~ ."))
@@ -118,7 +127,7 @@ grid_nnetar_tune <- grid_space_filling(
 
       # Time series parameters
       seasonal_ar = seasonal_ar(range = c(1, 4), trans = NULL),
-      non_seasonal_ar = non_seasonal_ar(range = c(1, 6), trans = NULL),
+      non_seasonal_ar = non_seasonal_ar(range = c(1, 8), trans = NULL),
       epochs = epochs(range = c(50L, 200L), trans = NULL)
     ),
   size = 75
@@ -149,9 +158,14 @@ tune_results_nnetar <- wflw_nnetar_tune |>
     # Add metrics
     metrics = metric_set(rmse, rsq)
   )
-toc() # takes ~ 48 mins to run
+toc() # takes ~ 20 mins to run
+# Added
+best_params <- tune_results_nnetar |> select_best(metric = "rmse")
+print(best_params)
 
 # Save the results ---------------------------------------------------
-save.image(file = here("Outputs/test", paste0("1.2-model-tune-nnetar-final_", dataset_name, "_", encounter_type, ".RData")))
+#save.image(file = here("Outputs", paste0("1.2-model-tune-nnetar-final_", dataset_name, "_", encounter_type, ".RData")))
+save.image(file = here(mod, paste0("1.2-model-tune-nnetar-final_", dataset_name,"_", encounter_type, ".RData")))
+
 }  # End of encounter type loop
 }  # End of dataset loop
