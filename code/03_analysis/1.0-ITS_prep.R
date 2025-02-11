@@ -48,22 +48,26 @@ cov <- read_csv("data/01_raw/gridmet_cov_exp_level.csv") %>%
 df <- full_join(df, cov) %>%
   drop_na(enc_type)
 
-# # Define time periods
-# time_periods <- list(
-#   "2022_2023" = list(start = ymd("2022-11-01"), end = ymd("2023-01-21")),
-#   "2023_2024" = list(start = ymd("2023-11-01"), end = ymd("2024-01-21")),
-#   "2024_2025" = list(start = ymd("2024-11-01"), end = ymd("2025-01-21"))
-# )
 
 # Ensure date column is in Date format
 df <- df %>% 
-  mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y"))
+  mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y")) %>%
+# Define time periods
+  mutate(
+    time_period = case_when(
+      date >= ymd("2022-11-01") & date <= ymd("2023-01-31") ~ 1,
+      date >= ymd("2023-11-01") & date <= ymd("2024-01-31") ~ 2,
+      date >= ymd("2024-11-01") & date <= ymd("2025-01-21") ~ 3,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  drop_na(time_period)  # Remove rows outside defined time periods
 
 # Create datasets split by encounter type and exposure level
 out_enc_data <- df %>%
   select(enc_type, exp_level, encounter_dt, num_enc, 
          num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
-         pr, tmmx, tmmn, rmin, rmax, vs, srad) %>%
+         pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period) %>%
   group_by(enc_type, exp_level) %>%
   nest() %>%
   mutate(dataset_name = paste0("df_", enc_type, "_", exp_level))
@@ -83,9 +87,9 @@ for (dataset_name in names(outcome_enc_datasets)) {
       year = year(date),
       postjan7 = ifelse(month_day < "01-07" | month_day > "01-31", 0, 1)
     ) %>%
-    filter(!(month_day >= "01-06" & year == 2025)) %>%
+    filter(!(month_day > "01-06" & year == 2025)) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
-           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)
+           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period)
   
   write.csv(df_train_test, paste0(outp, "df-train-test_sf_", dataset_name, ".csv"), row.names = FALSE)
   
@@ -99,7 +103,7 @@ for (dataset_name in names(outcome_enc_datasets)) {
     ) %>%
    # filter(!(month_day >= "01-27" & month_day <= "02-01")) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
-           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7 )
+           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period)
   
   write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
 }

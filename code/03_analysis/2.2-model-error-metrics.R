@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 # #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-------------------------Date:2/11/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -34,8 +34,8 @@ options(scipen = 999)
 # load data ---------------------------------------------------
 
 # List of dataset names
-datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
-
+datasets<- c("df_Virtual_high") , "df_OP_high", "df_ED_high", "df_IP_high")
+dataset_name<-"df_Virtual_high"
 
 # datasets <- c(
 #   #"df_2022_2023_ED_high",
@@ -67,19 +67,22 @@ for (dataset_name in datasets) {
   for (encounter_type in encounter_types) {
     
       # load data ---------------------------------------------------
-       preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
-      df_preintervention <- read.csv(here(preintervention_filename)) %>%
-        mutate(date = as.Date(date)) %>%
-        select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad) %>% # Dynamically select the encounter type column
-      mutate(across(all_of(encounter_type), as.integer)) # Dynamically select the encounter type column
-      
-      
-      all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
-      df_all_cases <- read.csv(here(all_cases_filename)) %>%
-        mutate(date = as.Date(date)) %>%
-        select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad) %>% # Dynamically select the encounter type column
-        mutate(across(all_of(encounter_type), as.integer)) # Dynamically select the encounter type column
-      
+    #preintervention_filename <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") # lara will toggle on
+    preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
+    df_preintervention <- read.csv(here(preintervention_filename)) %>%
+      mutate(date = as.Date(date)) %>%
+      select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+      mutate(across(where(is.numeric), as.integer)) %>%
+      arrange(date)
+    
+    # all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
+    all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
+    df_all_cases <- read.csv(here(all_cases_filename)) %>%
+      mutate(date = as.Date(date)) %>%
+      select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+      mutate(across(where(is.numeric), as.integer)) %>%
+      arrange(date)
+    
     
 # load tuned models ---------------------------------------------------
   # # Load ARIMA model

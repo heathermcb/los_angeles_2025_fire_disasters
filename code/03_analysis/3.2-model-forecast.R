@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-------------------------Date:2/11/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -23,11 +23,12 @@ mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rap
 
 
 # List of datasets to iterate over
-datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
+datasets<- c("df_Virtual_high")
+#datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
 
 # List of encounter types to loop through
-#encounter_types <- c("num_enc")
-encounter_types <- c("num_enc", "num_enc_resp", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+encounter_types <- c("num_enc")
+#encounter_types <- c("num_enc", "num_enc_resp", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
@@ -72,14 +73,14 @@ options(scipen = 999)
 preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
 df_preintervention <- read.csv(here(preintervention_filename)) %>%
   mutate(date = as.Date(date)) %>%
-  mutate(encounter_type=as.integer(encounter_type))%>%
+  #mutate(encounter_type=as.integer(encounter_type))%>%
   select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)  # Dynamically select the encounter type column
 
 # all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
 all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
 df_all_cases <- read.csv(here(all_cases_filename)) %>%
   mutate(date = as.Date(date)) %>%
-  mutate(encounter_type=as.integer(encounter_type))%>%
+  #mutate(encounter_type=as.integer(encounter_type))%>%
   select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)  # Dynamically select the encounter type column
 
 #forecast on all cases with bootstrapped CIs ------------------------------------------
@@ -87,7 +88,7 @@ df_all_cases <- read.csv(here(all_cases_filename)) %>%
 forecast_cis <- generate_forecast_values(
   model_spec = model_tbl_best,
   training_data = df_preintervention,
-  forecast_horizon_data = df_all_cases #,
+  forecast_horizon_data = df_all_cases 
  # n_iterations = 1000
 )
 forecast_cis<-forecast_cis[,1:2]
@@ -98,10 +99,15 @@ colnames(forecast_cis) <- c("date", "num_pred")
 df_forecast <- df_all_cases |>
     rename(num_cases = encounter_type) |>
     select(date, num_cases)  |>
-    left_join(forecast_cis, by = "date")
+    left_join(forecast_cis, by = "date") |>
+    arrange(date) |>
+    mutate(time=row_number(),
+           residuals=(num_pred-num_cases))
+  
+  
 
 # Create the plot using ggplot2
-p <- ggplot(df_forecast, aes(x = date)) +
+p <- ggplot(df_forecast, aes(x = time)) +
   # Line for num_cases
   geom_line(aes(y = num_cases, color = "Actual Cases"), size = 1) +
   # Line for num_pred
@@ -110,8 +116,22 @@ p <- ggplot(df_forecast, aes(x = date)) +
     title = paste("Forecast for", encounter_type, "in", dataset_name),    x = "Date",
     y = "Number of Cases"
   ) +
+  geom_vline(xintercept = 252, linetype = "dotted", color = "black", size = 0.5) +
   scale_color_manual(values = c("Actual Cases" = "blue", "Predicted Cases" = "red")) +
   theme_minimal()
+
+# Plot of residuals
+residuals <- ggplot(df_forecast, aes(x = time)) +
+  # Line for num_cases
+  geom_line(aes(y = residuals), size = 1) +
+  labs(
+    title = paste("Residuals for", encounter_type, "in", dataset_name),    x = "Date",
+    y = "Residuals"
+  ) +
+  geom_vline(xintercept = 252, linetype = "dotted", color = "black", size = 0.5) +
+  #scale_color_manual(values = c("Actual Cases" = "blue", "Predicted Cases" = "red")) +
+  theme_minimal()
+
 
 # Save the plot to a file
 file_name <- paste0(outp, "forecast_", unique(df_forecast$encounter_type), "_", deparse(substitute(dataset)), ".png")

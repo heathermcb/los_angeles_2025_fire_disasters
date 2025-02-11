@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-------------------------Date:2/11/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -50,8 +50,8 @@ datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
 # )
 
 # List of encounter types to loop through
-#encounter_types <- c( "num_enc_injury")
-encounter_types <- c("num_enc", "num_enc_resp", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+encounter_types <- c( "num_enc")
+#encounter_types <- c("num_enc", "num_enc_resp", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
 
 #""num_enc_cardio", ", "num_enc_neuro",   "num_enc_injury"
 # Loop through each dataset and load the models and process results
@@ -67,23 +67,24 @@ for (dataset_name in datasets) {
   preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
   df_preintervention <- read.csv(here(preintervention_filename)) %>%
     mutate(date = as.Date(date)) %>%
-     select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)  %>%
-     mutate(across(all_of(encounter_type), as.integer)) # This was changed because I had an error when using it as numeric
-  
+    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+    mutate(across(where(is.numeric), as.integer)) %>%
+    arrange(date)
+
   # all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
   all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
   df_all_cases <- read.csv(here(all_cases_filename)) %>%
     mutate(date = as.Date(date)) %>%
-    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)  %>%
-     mutate(across(all_of(encounter_type), as.integer)) # This was changed because I had an error when using it as numeric
-  
+    select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+     mutate(across(where(is.numeric), as.integer)) %>%
+    arrange(date)
 
 # load tuned models ---------------------------------------------------
 # # # Load ARIMA model
-# arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
-# load(here(arima_filename))
-# print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
-# 
+arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
+load(here(arima_filename))
+print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
+
 # # # Load NNETAR model
 # #rm(list = ls(pattern = "num_enc_neuro"))
 # nnetar_filename <- paste0("Outputs/", "1.2-model-tune-nnetar-final_", dataset_name, "_", encounter_type,".RData")
@@ -91,22 +92,22 @@ for (dataset_name in datasets) {
 # print(paste("Loaded NNETAR model for", encounter_type, dataset_name))
 
 # Load Prophet-XGBoost model
-#rm(list = ls(pattern = "num_enc_neuro"))
- phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
-  
- load(here(phxgb_filename))
-print(paste("Loaded Prophet-XGBoost model for", encounter_type, dataset_name))
-encounter_types <- c("num_enc")
+# #rm(list = ls(pattern = "num_enc_neuro"))
+#  phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+#   
+#  load(here(phxgb_filename))
+# print(paste("Loaded Prophet-XGBoost model for", encounter_type, dataset_name))
+# encounter_types <- c("num_enc")
 
 # step-1: select best models ---------------------------------------------------
 set.seed(0112358)
 ## ARIMA
-# wflw_fit_arima_tuned <- wflw_arima_tune |>
-#   finalize_workflow(
-#     select_best(tune_results_arima, metric = "rmse")
-#   ) |>
-#   fit(training(splits))
-# 
+wflw_fit_arima_tuned <- wflw_arima_tune |>
+  finalize_workflow(
+    select_best(tune_results_arima, metric = "rmse")
+  ) |>
+  fit(training(splits))
+
 # # ## NNETAR
 # # set.seed(0112358)
 # wflw_fit_nnetar_tuned <- wflw_nnetar_tune |>
@@ -116,20 +117,20 @@ set.seed(0112358)
 #   fit(training(splits))
 
 ## Prophet + XGBoost - run this
-set.seed(0112358)
-
-
-  wflw_fit_phxgb_tuned <- wflw_phxgb_tune |>
-    finalize_workflow(select_best(tune_results_phxgb, metric = "rmse")) |>
-    fit(training(splits))
-
+# set.seed(0112358)
+# 
+# 
+#   wflw_fit_phxgb_tuned <- wflw_phxgb_tune |>
+#     finalize_workflow(select_best(tune_results_phxgb, metric = "rmse")) |>
+#     fit(training(splits))
+# 
 
 # step-2: generate modeltime table ---------------------------------------------------
 set.seed(0112358)
 model_tbl_best_all <- modeltime_table(
-   # wflw_fit_arima_tuned,
+    wflw_fit_arima_tuned #,
    #wflw_fit_nnetar_tuned,
-   wflw_fit_phxgb_tuned
+  # wflw_fit_phxgb_tuned
 )
 
 
