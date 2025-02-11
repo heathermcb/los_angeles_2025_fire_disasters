@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/6/25------------------------------------------#
+#-------------------------Date:2/10/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -134,3 +134,71 @@ generate_forecast_intervals <- function(
     
     return(results)
 }
+
+
+## function to only predict values (no confidence intervals)
+
+generate_forecast_values <- function(
+    model_spec,             
+    training_data,    
+    forecast_horizon_data,          
+    n_iterations = 1000    
+) {
+  forecast_predictions <- list()
+  
+  pb <- txtProgressBar(min = 0, max = n_iterations, style = 3)
+  
+  forecast_dates <- unique(forecast_horizon_data$date)
+  n_dates <- length(forecast_dates)
+  
+  forecast_matrix <- matrix(NA, nrow = n_dates, ncol = n_iterations)
+  
+  for(i in 1:n_iterations) {
+    iter_seed <- sample.int(.Machine$integer.max, 1)
+    set.seed(iter_seed)
+    
+    tryCatch({
+      calibrated_models <- model_spec |>
+        modeltime_calibrate(
+          new_data = training_data,
+          quiet = TRUE
+        )
+      
+      final_models <- calibrated_models |>
+        modeltime_refit(data = training_data)
+      
+      predictions <- final_models |>
+        modeltime_forecast(
+          new_data = forecast_horizon_data,
+          actual_data = training_data,
+          conf_interval = NULL,  # No confidence intervals
+          allow_parallel = FALSE
+        )
+      
+      pred_df <- predictions |>
+        filter(.model_desc != "ACTUAL")
+      forecast_matrix[, i] <- pred_df$.value
+      
+    }, error = function(e) {
+      warning(sprintf("Iteration %d failed: %s", i, e$message))
+      forecast_matrix[, i] <- NA
+    })
+    
+    setTxtProgressBar(pb, i)
+  }
+  
+  close(pb)
+  
+  forecast_matrix <- forecast_matrix[, colSums(!is.na(forecast_matrix)) > 0]
+  
+  results <- data.frame(
+    .index = forecast_dates,
+    .value = rowMeans(forecast_matrix, na.rm = TRUE)  # Only returning the mean forecast values
+  )
+  
+  attr(results, "n_successful") <- ncol(forecast_matrix)
+  attr(results, "n_attempted") <- n_iterations
+  
+  return(results)
+}
+
