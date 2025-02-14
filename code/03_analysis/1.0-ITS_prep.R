@@ -1,26 +1,44 @@
 #------------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-------------------------Date:2/12/25------------------------------------------#
 #------------------------------------------------------------------------------#
 
 # load packages
 if (!requireNamespace('pacman', quietly = TRUE)) {install.packages('pacman')}
-pacman::p_load(readr, dplyr, tidyr, purrr, lubridate)
+pacman::p_load(readr, dplyr, tidyr, purrr, lubridate, MMWRweek)
 
 # directories
 #inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
 #outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
 
 # Lara directories
-inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+#inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+#outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+#mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+
+# Server directories
+inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
 
 # upload dataset
 #df <- read_csv("paste0(inp, ENC_EXP_DAILY_01302025.csv")  #lara will toggle on
 df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02102025_updated.csv"))
+resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
+
+## adding respiratory viruses
+resp_virus_long <- resp_virus %>%
+  pivot_longer(cols = `2022-2023`:`2024-2025`, 
+               names_to = "time_period", 
+               values_to = "value")%>%
+  pivot_wider(names_from = resp_virus, values_from = value) %>%
+  mutate(year = case_when(
+    week < 40 ~ as.numeric(sub(".*-(\\d{4})", "\\1", time_period)),  # Extract second part
+    week >= 40 ~ as.numeric(sub("(\\d{4})-.*", "\\1", time_period))  # Extract first part
+  ))
+
 
 # Define exposure levels based on 'exp_pov'
 df <- df %>%
@@ -38,7 +56,16 @@ df <- df %>%
   select(-exp_pov) %>%  # Remove the 'exp_pov' variable
   group_by(exp_level, enc_type, encounter_dt) %>%
   summarise(across(everything(), sum, na.rm = TRUE)) %>%
-  mutate(encounter_dt = mdy(encounter_dt))
+  mutate(encounter_dt = mdy(encounter_dt),
+         mmwr_week=MMWRweek(encounter_dt)$MMWRweek,
+        year=year(encounter_dt)) # create MMWR week variable
+       
+
+# add in flu/rsv data
+# Merge both datasets based on week and year
+df <- df %>%
+  left_join(resp_virus_long, by = c("mmwr_week" = "week", "year")) %>%
+  select(-c(time_period))
 
 # add meterological covariates
 cov <- read_csv("data/01_raw/gridmet_cov_exp_level.csv") %>%
@@ -48,22 +75,26 @@ cov <- read_csv("data/01_raw/gridmet_cov_exp_level.csv") %>%
 df <- full_join(df, cov) %>%
   drop_na(enc_type)
 
-# # Define time periods
-# time_periods <- list(
-#   "2022_2023" = list(start = ymd("2022-11-01"), end = ymd("2023-01-21")),
-#   "2023_2024" = list(start = ymd("2023-11-01"), end = ymd("2024-01-21")),
-#   "2024_2025" = list(start = ymd("2024-11-01"), end = ymd("2025-01-21"))
-# )
 
 # Ensure date column is in Date format
 df <- df %>% 
-  mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y"))
+  mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y")) %>%
+# Define time periods
+  mutate(
+    time_period = case_when(
+      date >= ymd("2022-11-01") & date <= ymd("2023-01-31") ~ 1,
+      date >= ymd("2023-11-01") & date <= ymd("2024-01-31") ~ 2,
+      date >= ymd("2024-11-01") & date <= ymd("2025-01-21") ~ 3,
+      TRUE ~ NA_real_
+    )
+  ) %>%
+  drop_na(time_period)  # Remove rows outside defined time periods
 
 # Create datasets split by encounter type and exposure level
 out_enc_data <- df %>%
   select(enc_type, exp_level, encounter_dt, num_enc, 
          num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
-         pr, tmmx, tmmn, rmin, rmax, vs, srad) %>%
+         pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`) %>%
   group_by(enc_type, exp_level) %>%
   nest() %>%
   mutate(dataset_name = paste0("df_", enc_type, "_", exp_level))
@@ -83,9 +114,9 @@ for (dataset_name in names(outcome_enc_datasets)) {
       year = year(date),
       postjan7 = ifelse(month_day < "01-07" | month_day > "01-31", 0, 1)
     ) %>%
-    filter(!(month_day >= "01-06" & year == 2025)) %>%
+    filter(!(month_day > "01-06" & year == 2025)) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
-           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)
+           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
   
   write.csv(df_train_test, paste0(outp, "df-train-test_sf_", dataset_name, ".csv"), row.names = FALSE)
   
@@ -99,7 +130,7 @@ for (dataset_name in names(outcome_enc_datasets)) {
     ) %>%
    # filter(!(month_day >= "01-27" & month_day <= "02-01")) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
-           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7 )
+           pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
   
   write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
 }

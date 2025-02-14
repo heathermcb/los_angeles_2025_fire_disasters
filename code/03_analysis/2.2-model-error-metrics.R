@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 # #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-------------------------Date:2/12/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -22,9 +22,14 @@ pacman::p_load(here, tidymodels, tidyverse, modeltime, metrics)
 # mod <- "~/Desktop/projects/casey cohort/LA-wildfires/data/model-output/"
 
 # Lara directories
-inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+#inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+#outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+#mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+
+# Server directories
+inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
 
 # ensure consistent numeric precision ----------------------------------------------
@@ -32,29 +37,13 @@ options(digits = 7)
 options(scipen = 999)
 
 # load data ---------------------------------------------------
-
 # List of dataset names
-datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
-
-
-# datasets <- c(
-#   #"df_2022_2023_ED_high",
-#   "df_2023_2024_ED_high",
-#   "df_2024_2025_ED_high",
-#   "df_2022_2023_OP_high",
-#   "df_2023_2024_OP_high",
-#   "df_2024_2025_OP_high",
-#   "df_2022_2023_IP_high",
-#   "df_2023_2024_IP_high",
-#   "df_2024_2025_IP_high",
-#   "df_2022_2023_Virtual_high",
-#   "df_2023_2024_Virtual_high",
-#   "df_2024_2025_Virtual_high"
-# )
+#datasets<- c(  "df_Virtual_high", "df_OP_high")
+datasets<- c("df_Virtual_moderate", "df_OP_moderate")
 
 # List of encounter types to loop through
-#encounter_types <- c("num_enc")
-encounter_types <- c("num_enc", "num_enc_resp", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc_resp") #test
+encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
 
 
 # Initialize an empty list to store results
@@ -67,25 +56,28 @@ for (dataset_name in datasets) {
   for (encounter_type in encounter_types) {
     
       # load data ---------------------------------------------------
-       preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
-      df_preintervention <- read.csv(here(preintervention_filename)) %>%
-        mutate(date = as.Date(date)) %>%
-        select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad) %>% # Dynamically select the encounter type column
-      mutate(across(all_of(encounter_type), as.integer)) # Dynamically select the encounter type column
-      
-      
-      all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
-      df_all_cases <- read.csv(here(all_cases_filename)) %>%
-        mutate(date = as.Date(date)) %>%
-        select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad) %>% # Dynamically select the encounter type column
-        mutate(across(all_of(encounter_type), as.integer)) # Dynamically select the encounter type column
-      
+    preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
+    df_preintervention <- read.csv(here(preintervention_filename)) %>%
+      mutate(date = as.Date(date)) %>%
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+      #  select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
+      mutate(across(where(is.numeric), as.integer)) %>%
+      arrange(date)
     
-# load tuned models ---------------------------------------------------
-  # # Load ARIMA model
-  # arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
-  # load(here(arima_filename))
-  # #print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
+    all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
+    df_all_cases <- read.csv(here(all_cases_filename)) %>%
+      mutate(date = as.Date(date)) %>%
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+      # select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
+      mutate(across(where(is.numeric), as.integer)) %>%
+      arrange(date)
+    
+    
+#load tuned models ---------------------------------------------------
+# # Load ARIMA model
+# arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
+# load(here(arima_filename))
+# #print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
 
   # -----------------------------------------------
   # # Load NNETAR model
@@ -95,45 +87,25 @@ for (dataset_name in datasets) {
   # #print(paste("Loaded NNETAR model for",encounter_type,  dataset_name))
 
   # -----------------------------------------------
-  # Load Prophet-XGBoost model
-  rm(list = ls(pattern = "num_enc_neuro"))
-  phxgb_filename <- paste0("Outputs/", "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData") #lara will toggle on
- # phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+ #  # Load Prophet-XGBoost model
+   rm(list = ls(pattern = encounter_type))
+ # phxgb_filename <- paste0("Outputs/", "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData") #lara will toggle on
+  phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
   load(here(phxgb_filename))
-  #print(paste("Loaded Prophet-XGBoost model for",encounter_type,  dataset_name))
-  # -----------------------------------------------
+ #  #print(paste("Loaded Prophet-XGBoost model for",encounter_type,  dataset_name))
+ # #  # -----------------------------------------------
   # Load model table with best models
   # Construct file path
   model_tbl_filename <- paste0(mod, "2.1-model-select-best_", dataset_name, "_", encounter_type, ".rds")
-  
-  # Check if the file exists before reading
-  if (!file.exists(here(model_tbl_filename))) {
-    warning(paste("File not found, skipping:", model_tbl_filename))
-    next  # Skip to the next iteration
-  }
-  
-  # Try to load the model table, if it fails, print a warning and continue
-  model_tbl_best_all <- tryCatch({
-    readRDS(here(model_tbl_filename))
-  }, error = function(e) {
-    warning(paste("Skipping missing file:", model_tbl_filename))
-    return(NULL)  # Return NULL so that processing can continue
-  })
-  
-  # Skip this iteration if the file was not found
-  if (is.null(model_tbl_best_all)) next
- # encounter_types <- c("num_enc")
+  # load model table with best models ---------------------------------------------------
+  model_tbl_best_all <- readRDS(here(model_tbl_filename))
   
 # step-1: generate training error rates -----------------------------------------------
 ## calibrate best models on training data and format model descriptions
 training_preds <- model_tbl_best_all |>
   modeltime_calibrate(
-    # Question- what date to use here?
     new_data = training(splits),  #> # Create month_day variable based on date
      # mutate(month_day = format(date, "%m-%d")) |>
-      # Filter based on month_day
-     # filter(month_day > "11-01"),
-    # id = "county",
     quiet = FALSE
   ) |>
   select(.model_desc, .calibration_data) |>
@@ -148,11 +120,8 @@ training_preds <- model_tbl_best_all |>
 
 ## generate training error metrics
 df_training_metrics <- training_preds |>
-  # Question- what date to use here?
   # Create month_day variable based on date
   mutate(month_day = format(date, "%m-%d")) |>
-  # Filter based on month_day
- # filter(month_day > "12-01") |>
   group_by(.model_desc) |>
   summarise(
     mdae = Metrics::mdae(.actual, .prediction),
@@ -174,7 +143,7 @@ df_training_metrics <- training_preds |>
 training_errors_filename <- paste0(mod, "2.2-model-training-errors_", dataset_name, "_", encounter_type, ".rds")
 
 df_training_metrics |> saveRDS(here(training_errors_filename))
-#print(paste("Saved training error metrics for", encounter_type, dataset_name))
+print(paste("Saved training error metrics for", encounter_type, dataset_name))
 
 # step-2: generate test error rates ------------------------------------------
 ## calibrate best models on test data and format model descriptions
@@ -198,8 +167,6 @@ test_preds <- model_tbl_best_all |>
 df_testing_metrics <- test_preds |>
   # Create month_day variable based on date
   mutate(month_day = format(date, "%m-%d")) |>
-  # Filter based on month_day
-  #filter(month_day > "12-01") |>
   group_by(.model_desc) |>
   summarise(
     mdae = Metrics::mdae(.actual, .prediction),
@@ -225,20 +192,22 @@ results_list[[length(results_list) + 1]] <- df_training_metrics
 results_list[[length(results_list) + 1]] <- df_testing_metrics
 
 # Save test predictions
-#test_errors_filename <- paste0("Outputs/", "2.2-model-test-errors_", dataset_name, "_", encounter_type, ".rds") #lara will toggle on
 test_errors_filename <- paste0(mod, "2.2-model-test-errors_", dataset_name, "_", encounter_type, ".rds")
 
-#df_testing_metrics |> saveRDS(here(test_errors_filename))
-#print(paste("Saved test error metrics for", encounter_type, dataset_name))
+df_testing_metrics |> saveRDS(here(test_errors_filename))
+print(paste("Saved test error metrics for", encounter_type, dataset_name))
   }
 }
 
 # Combine all results into a single dataframe
 results_train_test_metrics <- bind_rows(results_list)
+# Save the final results dataset
+final_results_filename <- paste0(outp, "model_performance_metrics.csv")
+write.csv(results_train_test_metrics, here(final_results_filename))
+# Print final results
 
 # Save the final results dataset
-final_results_filename <- paste0("Outputs/", "model_performance_metrics.rds")
+final_results_filename <- paste0(outp, "model_performance_metrics.rds")
 saveRDS(results_train_test_metrics, here(final_results_filename))
-
 # Print final results
 print(results_train_test_metrics)

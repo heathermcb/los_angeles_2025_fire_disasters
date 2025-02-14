@@ -1,6 +1,6 @@
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/6/25------------------------------------------#
+#-------------------------Date:2/11/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -22,9 +22,10 @@ mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rap
 
 # List of dataset names
 # used for testing
-datasets <- c( "df_2022_2023_Virtual_high",
-              "df_2023_2024_Virtual_high",   "df_2024_2025_Virtual_high")
-#datasets <- c("df_2022_2023_OP_high")
+datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
+
+#datasets<- c(  "df_ED_high", "df_IP_high")
+#"df_Virtual_high",
 # datasets <- c("df_2022_2023_OP_high", "df_2023_2024_OP_high", "df_2024_2025_OP_high",
 #   #"df_2022_2023_ED_high",
 #   "df_2023_2024_ED_high",
@@ -41,8 +42,8 @@ datasets <- c( "df_2022_2023_Virtual_high",
 # )
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
-#encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc")
+encounter_types <- c( "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
 # Iterate over each dataset
 for (dataset_name in datasets) {
   # Iterate over each dataset
@@ -58,27 +59,28 @@ for (dataset_name in datasets) {
     
     # Subset the dataset to include only date and the current encounter type variable
     df_train_test_encounter <- df_train_test %>%
-      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad) %>%
-      mutate(across(all_of(encounter_type), as.numeric))
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+      mutate(across(all_of(encounter_type), as.numeric)) #%>%
+      #filter(date<="2024-01-31")
     
 # split data into training and test sets -------------------------------------
 set.seed(0112358)
 splits <- df_train_test_encounter |>
   time_series_split(
-    assess = "10 days",
+    #assess = "50 days", used this for recent run 2/11
+    assess = "75 days",
     cumulative = TRUE,
     date_var = date
   )
 #min(testing(splits))
-## Question - I commented out the inital command, is that ok? 
 ## resample data ----
 set.seed(0112358)
 resamples_kfold <- training(splits) |>
   # resamples_kfold_resp <- training(splits) |> 
-  # vfold_cv(v = 10, strata = date)
+   vfold_cv(v = 10, strata = date)
   # NOTE: replace function with simpler version
     time_series_cv(
-    assess = "4 days",     # Length of each assessment period
+    assess = "30 days",     # Length of each assessment period
     #initial = "5 days",     # Initial training period
     slice_limit = 8,        # Number of slices to create
     cumulative = TRUE       # Use expanding window
@@ -95,7 +97,7 @@ rec_obj_arima <- recipe(formula, training(splits)) %>%
   
   # clean up and normalize
   step_rm(matches("(.iso$)|(.xts$)")) %>%
-  step_normalize(matches("(index.num$)|(_year$)")) %>%
+  step_normalize(matches("(index.num$)|(_year$)|tmmx|tmmn|rmax|rmin|pr|vs|srad")) |>
   step_dummy(all_nominal())
 
 ### Review the recipe 
@@ -154,7 +156,7 @@ tune_results_arima <- wflw_arima_tune |>
     # Add metrics
     metrics = metric_set(rmse, rsq)
   )
-toc() # takes ~2 mins to run
+toc() # takes ~20 mins to run
 
 # Added
 best_params <- tune_results_arima |> select_best(metric = "rmse")
