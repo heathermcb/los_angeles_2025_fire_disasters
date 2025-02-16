@@ -6,6 +6,7 @@
 .Rproj.user
 .Rhistory.venv/
 /lafires
+/03_output
 
 # Ignore temporary files created by Word
 ~$*.docx
