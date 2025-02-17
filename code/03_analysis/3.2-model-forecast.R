@@ -3,6 +3,7 @@
 #-------------------------R code-----------------------------------------------#
 #-------------------------Date:2/13/25------------------------------------------#
 
+
 # Code adapted from the following project:
 
 # @project: Two-stage interrupted time series design
@@ -34,6 +35,7 @@ datasets<- c("df_Virtual_moderate", "df_OP_moderate")
 # List of encounter types to loop through
 #encounter_types <- c("num_enc_resp")
 encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
+
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
@@ -83,6 +85,7 @@ df_preintervention <- read.csv(here(preintervention_filename)) %>%
   mutate(across(where(is.numeric), as.integer)) %>%
   arrange(date)
   
+
 # all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
 all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
 df_all_cases <- read.csv(here(all_cases_filename)) %>%
@@ -92,6 +95,7 @@ df_all_cases <- read.csv(here(all_cases_filename)) %>%
   mutate(across(where(is.numeric), as.integer)) %>%
   arrange(date)
 
+
 #forecast on all cases with bootstrapped CIs ------------------------------------------
 #forecast_cis <- generate_forecast_intervals(
 forecast_cis <- generate_forecast_intervals(
@@ -99,6 +103,7 @@ forecast_cis <- generate_forecast_intervals(
   training_data = df_preintervention,
   forecast_horizon_data = df_all_cases, 
   n_iterations = 1000
+
 )
 #forecast_cis<-forecast_cis[,1:2]
 colnames(forecast_cis) <- c("date", "num_pred", "conf_lo", "conf_hi")
@@ -126,7 +131,7 @@ p <- ggplot(df_forecast, aes(x = time)) +
   ) +
   geom_vline(xintercept = 252, linetype = "dotted", color = "black", size = 0.5) +
   scale_color_manual(values = c("Actual Cases" = "#b9563f", "Predicted Cases" = "#3182bd")) +
-  theme_minimal()
+
 
 # Plot of residuals
 residuals <- ggplot(df_forecast, aes(x = time)) +

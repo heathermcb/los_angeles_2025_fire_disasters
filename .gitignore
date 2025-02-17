@@ -1,10 +1,12 @@
 /local_data
 /data/00_raw
 /data/01_intermediate
+/03_output
 /figures/figures_output
 .Rproj.user
 .Rhistory.venv/
 /lafires
+/03_output
 
 # Ignore temporary files created by Word
 ~$*.docx

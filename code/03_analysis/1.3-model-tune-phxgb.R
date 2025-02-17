@@ -3,6 +3,7 @@
 #-------------------------R code-----------------------------------------------#
 #-------------------------Date:2/13/25------------------------------------------#
 
+
 # Code adapted from the following project:
 
 # @project: Two-stage interrupted time series design
@@ -44,6 +45,7 @@ datasets<- c("df_Virtual_moderate", "df_OP_moderate")
 # List of encounter types to loop through
 #encounter_types <- c("num_enc_resp") test
 encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
+
 
 # Iterate over each dataset
 for (dataset_name in datasets) {
@@ -175,6 +177,7 @@ for (dataset_name in datasets) {
           metrics = metric_set(rmse, rsq)
         )
     })
+
 toc() 
 
 # Added

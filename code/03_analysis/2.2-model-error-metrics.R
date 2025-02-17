@@ -3,6 +3,7 @@
 #-------------------------R code-----------------------------------------------#
 #-------------------------Date:2/12/25------------------------------------------#
 
+
 # Code adapted from the following project:
 
 # @project: Two-stage interrupted time series design
@@ -41,6 +42,7 @@ options(scipen = 999)
 #datasets<- c(  "df_Virtual_high", "df_OP_high")
 datasets<- c("df_Virtual_moderate", "df_OP_moderate")
 
+
 # List of encounter types to loop through
 #encounter_types <- c("num_enc_resp") #test
 encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
@@ -69,8 +71,7 @@ for (dataset_name in datasets) {
       mutate(date = as.Date(date)) %>%
       select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
       # select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
-      mutate(across(where(is.numeric), as.integer)) %>%
-      arrange(date)
+
     
     
 #load tuned models ---------------------------------------------------

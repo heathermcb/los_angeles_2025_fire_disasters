@@ -3,6 +3,7 @@
 #-------------------------R code-----------------------------------------------#
 #-------------------------Date:2/12/25------------------------------------------#
 
+
 # Code adapted from the following project:
 
 
@@ -41,6 +42,7 @@ datasets<- c("df_Virtual_moderate", "df_OP_moderate")
 #encounter_types <- c( "num_enc_resp")
 encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
 
+
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
   # Loop through each encounter type and create a recipe
@@ -60,14 +62,14 @@ for (dataset_name in datasets) {
     mutate(date = as.Date(date)) %>%
     select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
     #select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
-     mutate(across(where(is.numeric), as.integer)) %>%
-    arrange(date)
+
 
 # load tuned models ---------------------------------------------------
 # # # Load ARIMA model
 # arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
 # load(here(arima_filename))
 # print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
+
 
 # # # Load NNETAR model
 # #rm(list = ls(pattern = "num_enc_neuro"))
@@ -111,13 +113,12 @@ set.seed(0112358)
     fit(training(splits))
 
 
+
 # step-2: generate modeltime table ---------------------------------------------------
 set.seed(0112358)
 model_tbl_best_all <- modeltime_table(
    # wflw_fit_arima_tuned #,
-   #wflw_fit_nnetar_tuned,
-   wflw_fit_phxgb_tuned
-)
+
 
 
 output_filename <- paste0("2.1-model-select-best_", dataset_name,"_", encounter_type, ".rds")

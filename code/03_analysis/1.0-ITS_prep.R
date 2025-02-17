@@ -95,6 +95,7 @@ out_enc_data <- df %>%
   select(enc_type, exp_level, encounter_dt, num_enc, 
          num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
          pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`) %>%
+
   group_by(enc_type, exp_level) %>%
   nest() %>%
   mutate(dataset_name = paste0("df_", enc_type, "_", exp_level))
@@ -131,6 +132,7 @@ for (dataset_name in names(outcome_enc_datasets)) {
    # filter(!(month_day >= "01-27" & month_day <= "02-01")) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
            pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
+
   
   write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
 }

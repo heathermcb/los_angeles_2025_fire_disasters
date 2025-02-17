@@ -25,6 +25,7 @@ mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rap
 datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
 
 #datasets<- c(  "df_ED_high", "df_IP_high")
+
 #"df_Virtual_high",
 # datasets <- c("df_2022_2023_OP_high", "df_2023_2024_OP_high", "df_2024_2025_OP_high",
 #   #"df_2022_2023_ED_high",
@@ -62,6 +63,7 @@ for (dataset_name in datasets) {
       select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
       mutate(across(all_of(encounter_type), as.numeric)) #%>%
       #filter(date<="2024-01-31")
+
     
 # split data into training and test sets -------------------------------------
 set.seed(0112358)
