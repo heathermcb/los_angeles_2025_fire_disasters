@@ -1,7 +1,8 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/11/25------------------------------------------#
+#-------------------------Date:2/13/25------------------------------------------#
+
 
 # Code adapted from the following project:
 
@@ -16,19 +17,25 @@ rm(list = ls())
 set.seed(0112358)
 pacman::p_load(here, tidymodels, tidyverse, modeltime)
 
-# Lara directories
-inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# # Lara directories
+# inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+# outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+
+# Server directories
+inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
 
 # List of datasets to iterate over
-datasets<- c("df_Virtual_high")
-#datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
+datasets<- c("df_Virtual_moderate", "df_OP_moderate")
+#datasets<- c(, "df_ED_high", "df_IP_high", "df_Virtual_moderate", "df_OP_moderate")
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
-#encounter_types <- c("num_enc", "num_enc_resp", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc_resp")
+encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
+
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
@@ -73,27 +80,33 @@ options(scipen = 999)
 preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
 df_preintervention <- read.csv(here(preintervention_filename)) %>%
   mutate(date = as.Date(date)) %>%
-  #mutate(encounter_type=as.integer(encounter_type))%>%
-  select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)  # Dynamically select the encounter type column
+  select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+  #  select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
+  mutate(across(where(is.numeric), as.integer)) %>%
+  arrange(date)
+  
 
 # all_cases_filename <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
 all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
 df_all_cases <- read.csv(here(all_cases_filename)) %>%
   mutate(date = as.Date(date)) %>%
-  #mutate(encounter_type=as.integer(encounter_type))%>%
-  select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7)  # Dynamically select the encounter type column
+  select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+  #  select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
+  mutate(across(where(is.numeric), as.integer)) %>%
+  arrange(date)
+
 
 #forecast on all cases with bootstrapped CIs ------------------------------------------
 #forecast_cis <- generate_forecast_intervals(
-forecast_cis <- generate_forecast_values(
+forecast_cis <- generate_forecast_intervals(
   model_spec = model_tbl_best,
   training_data = df_preintervention,
-  forecast_horizon_data = df_all_cases 
- # n_iterations = 1000
+  forecast_horizon_data = df_all_cases, 
+  n_iterations = 1000
+
 )
-forecast_cis<-forecast_cis[,1:2]
-colnames(forecast_cis) <- c("date", "num_pred")
-#, "conf_lo", "conf_hi")
+#forecast_cis<-forecast_cis[,1:2]
+colnames(forecast_cis) <- c("date", "num_pred", "conf_lo", "conf_hi")
 
 # Merge with actuals ---------------------------------------------------
 df_forecast <- df_all_cases |>
@@ -117,8 +130,8 @@ p <- ggplot(df_forecast, aes(x = time)) +
     y = "Number of Cases"
   ) +
   geom_vline(xintercept = 252, linetype = "dotted", color = "black", size = 0.5) +
-  scale_color_manual(values = c("Actual Cases" = "blue", "Predicted Cases" = "red")) +
-  theme_minimal()
+  scale_color_manual(values = c("Actual Cases" = "#b9563f", "Predicted Cases" = "#3182bd")) +
+
 
 # Plot of residuals
 residuals <- ggplot(df_forecast, aes(x = time)) +
@@ -134,9 +147,11 @@ residuals <- ggplot(df_forecast, aes(x = time)) +
 
 
 # Save the plot to a file
-file_name <- paste0(outp, "forecast_", unique(df_forecast$encounter_type), "_", deparse(substitute(dataset)), ".png")
-ggsave(file_name, plot = p)
+file_name <- paste0(outp, "forecast_", dataset_name, "_", encounter_type, ".png")
+ggsave(file_name, plot = p, width = 12, height = 6)
 
+file_name <- paste0(outp, "residuals_", dataset_name, "_", encounter_type, ".png")
+ggsave(file_name, plot = residuals, width = 12, height = 6)
 # Add the .model_desc to the final forecast dataset
 #df_forecast$model_desc <- best_model_desc
 
