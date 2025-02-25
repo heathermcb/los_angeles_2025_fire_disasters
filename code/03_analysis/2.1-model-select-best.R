@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/12/25------------------------------------------#
+#-------------------------Date:2/20/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -28,18 +28,24 @@ pacman::p_load(here, tidymodels, tidyverse, modeltime, dplyr)
 #mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
 # Server directories
+# inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+# mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# #outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
+# outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/testing/"
+
+# Server directories
 inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
+#outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/testing/"
 
 # List of dataset names
-datasets<- c("df_Virtual_moderate", "df_OP_moderate")
-#datasets<- c( "df_Virtual_high", "df_OP_high")
-
+datasets<- c( "df_OP_high", "df_Virtual_high", "df_OP_moderate", "df_Virtual_moderate") 
+#datasets<- ("df_Virtual_moderate")
 
 # List of encounter types to loop through
-#encounter_types <- c( "num_enc_resp")
-encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
+#encounter_types <- c("num_enc_resp") #test
+encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
@@ -47,24 +53,30 @@ for (dataset_name in datasets) {
   for (encounter_type in encounter_types) {
     
 # load data ---------------------------------------------------
-  preintervention_filename <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv") 
+  preintervention_filename <- paste0(mod,"df-train-test_sf_", dataset_name, ".csv") 
   df_preintervention <- read.csv(here(preintervention_filename)) %>%
     mutate(date = as.Date(date)) %>%
     select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
-    #select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
+    mutate(influenza.a = influenza.a * 10000000,
+           influenza.b = influenza.b * 10000000,
+           rsv = rsv * 10000000,
+           sars.cov2 = sars.cov2*10000000) %>%
     mutate(across(where(is.numeric), as.integer)) %>%
     arrange(date)
 
-  all_cases_filename <-  paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
+  all_cases_filename <-  paste0(mod,"df-predict-sf_", dataset_name, ".csv") 
   df_all_cases <- read.csv(here(all_cases_filename)) %>%
     mutate(date = as.Date(date)) %>%
     select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
-    #select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
-     mutate(across(where(is.numeric), as.integer)) %>%
+    mutate(influenza.a = influenza.a * 10000000,
+           influenza.b = influenza.b * 10000000,
+           rsv = rsv * 10000000,
+           sars.cov2 = sars.cov2*10000000) %>%
+    mutate(across(where(is.numeric), as.integer)) %>%
     arrange(date)
 
 # load tuned models ---------------------------------------------------
-# # # Load ARIMA model
+# # Load ARIMA model
 # arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
 # load(here(arima_filename))
 # print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
@@ -76,16 +88,17 @@ for (dataset_name in datasets) {
 # print(paste("Loaded NNETAR model for", encounter_type, dataset_name))
 
 ##Load Prophet-XGBoost model
-# #rm(list = ls(pattern = "num_enc_neuro"))
-phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+phxgb_filename <- paste0(outp, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
 
-load(here(phxgb_filename))
+# Create a temporary environment
+temp_env <- new.env()
+
+load(here(phxgb_filename), envir = temp_env)
 print(paste("Loaded Prophet-XGBoost model for", encounter_type, dataset_name))
-#encounter_types <- c("num_enc")
 
 # step-1: select best models ---------------------------------------------------
-set.seed(0112358)
-# ## ARIMA
+#set.seed(0112358)
+## ARIMA
 # wflw_fit_arima_tuned <- wflw_arima_tune |>
 #   finalize_workflow(
 #     select_best(tune_results_arima, metric = "rmse")
@@ -103,8 +116,11 @@ set.seed(0112358)
 #Prophet + XGBoost - run this
 set.seed(0112358)
 
-# Then finalize the workflow and fit it
-
+# Then finalize the workflow and fit it from the temporary environment
+# Access objects explicitly
+wflw_phxgb_tune <- temp_env$wflw_phxgb_tune
+tune_results_phxgb <- temp_env$tune_results_phxgb
+splits <- temp_env$splits  
 
   wflw_fit_phxgb_tuned <- wflw_phxgb_tune |>
     finalize_workflow(select_best(tune_results_phxgb, metric = "rmse")) |>
@@ -114,7 +130,7 @@ set.seed(0112358)
 # step-2: generate modeltime table ---------------------------------------------------
 set.seed(0112358)
 model_tbl_best_all <- modeltime_table(
-   # wflw_fit_arima_tuned #,
+    #wflw_fit_arima_tuned #,
    #wflw_fit_nnetar_tuned,
    wflw_fit_phxgb_tuned
 )
@@ -123,7 +139,7 @@ model_tbl_best_all <- modeltime_table(
 output_filename <- paste0("2.1-model-select-best_", dataset_name,"_", encounter_type, ".rds")
 
 # Save the model_tbl_best_all to an RDS file for the current dataset
-model_tbl_best_all |> saveRDS(here(mod, output_filename)) 
+model_tbl_best_all |> saveRDS(here(outp, output_filename)) 
 
 
 }

@@ -1,20 +1,41 @@
 #------------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- exploring aggregated health data ---------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25-----------------------------------------#
+#-------------------------Date:2/25/25-----------------------------------------#
 #-------------------------Lara Schwarz-----------------------------------------#
 #------------------------------------------------------------------------------#
 ## Purpose: Descriptive stats for health data
+
+# load packages
+if (!requireNamespace('pacman', quietly = TRUE)) {install.packages('pacman')}
+pacman::p_load(readr, dplyr, tidyr, purrr, lubridate, gggplot2)
+
 # Lara directories
-inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+# outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+
+
+# Server directories
+inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
 
 # upload dataset
 df <- read_csv(paste0(inp, "ENC_EXP_DAILY_01302025.csv"))  
 df_updated <- read_csv(paste0(inp,"ENC_EXP_DAILY_02102025_updated.csv"))
+df_updated2 <- read_csv(paste0(inp,"ENC_EXP_DAILY_02232025.csv"))
 
+# Define time periods
+time_periods <- list(
+  "2022_2023" = list(start = ymd("2022-11-01"), end = ymd("2023-01-21")),
+  "2023_2024" = list(start = ymd("2023-11-01"), end = ymd("2024-01-21")),
+  "2024_2025" = list(start = ymd("2024-11-01"), end = ymd("2025-01-21"))
+)
+
+# for running same code
+df<-df_updated
 # load packages
 if (!requireNamespace('pacman', quietly = TRUE)){install.packages('pacman')}
 pacman::p_load( readr, dplyr, lubridate, ggplot2, RColorBrewer)
@@ -29,15 +50,52 @@ if (!dir.exists(output_dir)) {
 
 # upload dataset
 
+## Combining datasets:
+
+# Function to process each dataset
+process_dataset <- function(df, dataset_name) {
+  df %>%
+    mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y"),
+           month_day = format(date, "%m-%d"),
+           exp_pov_category = case_when(
+             exp_pov %in% c(0, 1) ~ "0+1",
+             exp_pov %in% c(2, 3) ~ "2+3",
+             exp_pov %in% c(4, 5) ~ "4+5",
+             TRUE ~ NA_character_
+           )) %>%
+    filter(!is.na(exp_pov_category)) %>%
+    mutate(year = year(date),
+           week = week(date),
+           day_of_year = yday(date)) %>%
+    group_by(date, exp_pov_category, day_of_year, year, enc_type, month_day) %>%
+    summarise(num_enc = sum(num_enc, na.rm = TRUE),
+              num_enc_cardio = sum(num_enc_cardio, na.rm = TRUE),
+              num_enc_resp = sum(num_enc_resp, na.rm = TRUE),
+              num_enc_neuro = sum(num_enc_neuro, na.rm = TRUE),
+              num_enc_injury = sum(num_enc_injury, na.rm = TRUE),
+              .groups = 'drop') %>%
+    mutate(month_day = format(as.Date(date), "%m-%d"),
+           time_period = case_when(
+             between(date, time_periods[["2022_2023"]][["start"]], time_periods[["2022_2023"]][["end"]]) ~ "2022_2023",
+             between(date, time_periods[["2023_2024"]][["start"]], time_periods[["2023_2024"]][["end"]]) ~ "2023_2024",
+             between(date, time_periods[["2024_2025"]][["start"]], time_periods[["2024_2025"]][["end"]]) ~ "2024_2025",
+             TRUE ~ NA_character_
+           )) %>%
+    filter(!is.na(time_period)) %>%
+    mutate(dataset = dataset_name)  # Label the dataset source
+}
+
+# Process both datasets
+df_summary <- process_dataset(df, "Original")
+df_updated_summary <- process_dataset(df_updated, "Updated 2/9")
+df_updated2_summary <- process_dataset(df_updated2, "Updated 2/23")
+
+# Combine both summaries
+df_combined_summary <- bind_rows(df_summary, df_updated_summary, df_updated2_summary)
+
 # Convert 'encounterdt' to Date format 
 df$encounterdt <- mdy(df$encounter_dt)  # 'mdy' is from the 'lubridate' package, adjust format if needed
 
-# Define time periods
-time_periods <- list(
-  "2022_2023" = list(start = ymd("2022-11-01"), end = ymd("2023-01-21")),
-  "2023_2024" = list(start = ymd("2023-11-01"), end = ymd("2024-01-21")),
-  "2024_2025" = list(start = ymd("2024-11-01"), end = ymd("2025-01-21"))
-)
 
 df <- df %>%
   mutate(date = as.Date(encounterdt, format = "%m/%d/%Y"))
@@ -75,10 +133,10 @@ df3 <- df %>%
 
 
 ## Added code to consider different years
-#df3 <- df %>%
- # filter( format(encounterdt, "%m-%d") >= "12-01" & format(encounterdt, "%m-%d") <="12-31" &
-      #       year(encounterdt) %in% c( 2023) | format(encounterdt, "%m-%d") >= "01-01" & format(encounterdt, "%m-%d") <="01-08" &
-        #    year(encounterdt) %in% c( 2024)) 
+# df3 <- df %>%
+# filter( format(encounterdt, "%m-%d") >= "12-01" & format(encounterdt, "%m-%d") <="12-31" &
+#       year(encounterdt) %in% c( 2023) | format(encounterdt, "%m-%d") >= "01-01" & format(encounterdt, "%m-%d") <="01-08" &
+#    year(encounterdt) %in% c( 2024))
 
 # Summarizing the sum of each variable by exp_pov_category
 df2_exp <- df2 %>%
@@ -139,6 +197,8 @@ for(enc_type in encounter_types) {
   ggsave(plot_filename, plot = p, width = 10, height = 6)
   
 }
+
+
 
 
 # Create a binary variable: 0 for Nov 1 to Jan 6, and 1 for Jan 7 to Jan 30
@@ -207,21 +267,21 @@ df3 <- df3 %>%
 
 df3_summary <- df3 %>%
   group_by(date, exp_pov_category, day_of_year, year, enc_type, month_day) %>%
-  summarise(avg_num_tot = mean(num_enc, na.rm = TRUE),
-            avg_num_enc_cardio = mean(num_enc_cardio, na.rm = TRUE),
-            avg_num_enc_resp = mean(num_enc_resp, na.rm = TRUE),
-            avg_num_enc_neuro = mean(num_enc_neuro, na.rm = TRUE),
-            avg_num_enc_injury = mean(num_enc_injury, na.rm = TRUE),
+  summarise(avg_num_tot = sum(num_enc, na.rm = TRUE),
+            avg_num_enc_cardio = sum(num_enc_cardio, na.rm = TRUE),
+            avg_num_enc_resp = sum(num_enc_resp, na.rm = TRUE),
+            avg_num_enc_neuro = sum(num_enc_neuro, na.rm = TRUE),
+            avg_num_enc_injury = sum(num_enc_injury, na.rm = TRUE),
             .groups = 'drop'
   )
 
-df_summary <- df_updated %>%
+df_summary <- df_updated_summary %>%
   group_by(date, exp_pov_category, day_of_year, year, enc_type, month_day) %>%
-  summarise(avg_num_tot = mean(num_enc, na.rm = TRUE),
-            avg_num_enc_cardio = mean(num_enc_cardio, na.rm = TRUE),
-            avg_num_enc_resp = mean(num_enc_resp, na.rm = TRUE),
-            avg_num_enc_neuro = mean(num_enc_neuro, na.rm = TRUE),
-            avg_num_enc_injury = mean(num_enc_injury, na.rm = TRUE),
+  summarise(avg_num_tot = sum(num_enc, na.rm = TRUE),
+            avg_num_enc_cardio = sum(num_enc_cardio, na.rm = TRUE),
+            avg_num_enc_resp = sum(num_enc_resp, na.rm = TRUE),
+            avg_num_enc_neuro = sum(num_enc_neuro, na.rm = TRUE),
+            avg_num_enc_injury = sum(num_enc_injury, na.rm = TRUE),
             .groups = 'drop'
   )
 df_summary$month_day <- format(as.Date(df_summary$date), "%m-%d")
@@ -289,48 +349,6 @@ for(enc_var in encounter_types) {
 
 
 
-## Combining datasets:
-
-# Function to process each dataset
-process_dataset <- function(df, dataset_name) {
-  df %>%
-    mutate(date = as.Date(encounterdt, format = "%m/%d/%Y"),
-           month_day = format(encounterdt, "%m-%d"),
-           exp_pov_category = case_when(
-             exp_pov %in% c(0, 1) ~ "0+1",
-             exp_pov %in% c(2, 3) ~ "2+3",
-             exp_pov %in% c(4, 5) ~ "4+5",
-             TRUE ~ NA_character_
-           )) %>%
-    filter(!is.na(exp_pov_category)) %>%
-    mutate(year = year(date),
-           week = week(date),
-           day_of_year = yday(date)) %>%
-    group_by(date, exp_pov_category, day_of_year, year, enc_type, month_day) %>%
-    summarise(avg_num_tot = mean(num_enc, na.rm = TRUE),
-              avg_num_enc_cardio = mean(num_enc_cardio, na.rm = TRUE),
-              avg_num_enc_resp = mean(num_enc_resp, na.rm = TRUE),
-              avg_num_enc_neuro = mean(num_enc_neuro, na.rm = TRUE),
-              avg_num_enc_injury = mean(num_enc_injury, na.rm = TRUE),
-              .groups = 'drop') %>%
-    mutate(month_day = format(as.Date(date), "%m-%d"),
-           time_period = case_when(
-             between(date, time_periods[["2022_2023"]][["start"]], time_periods[["2022_2023"]][["end"]]) ~ "2022_2023",
-             between(date, time_periods[["2023_2024"]][["start"]], time_periods[["2023_2024"]][["end"]]) ~ "2023_2024",
-             between(date, time_periods[["2024_2025"]][["start"]], time_periods[["2024_2025"]][["end"]]) ~ "2024_2025",
-             TRUE ~ NA_character_
-           )) %>%
-    filter(!is.na(time_period)) %>%
-    mutate(dataset = dataset_name)  # Label the dataset source
-}
-
-# Process both datasets
-df_summary <- process_dataset(df, "Original")
-df_updated_summary <- process_dataset(df_updated, "Updated")
-
-# Combine both summaries
-df_combined_summary <- bind_rows(df_summary, df_updated_summary)
-
 # Ensure month_day has consistent factor levels
 df_combined_summary$month_day <- factor(df_combined_summary$month_day, 
                                         levels = c("11-01", "11-02", "11-03", "11-04", "11-05", "11-06", 
@@ -353,30 +371,35 @@ df_combined_summary$month_day <- factor(df_combined_summary$month_day,
 df_filtered <- df_combined_summary %>% filter(time_period == "2024_2025")
 
 # describe types of encounters
-encounter_types <- c("avg_num_tot", "avg_num_enc_cardio", "avg_num_enc_resp", "avg_num_enc_neuro", "avg_num_enc_injury")
+encounter_types <- c("num_enc", "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+
+# Describe types of encounters
+encounter_types <- c( "num_enc_neuro")
 
 # Plot code for each encounter type
 for(enc_var in encounter_types) {
   
   # Create the plot for the current encounter variable
-  p <- ggplot(df_filtered, aes(x = month_day, y = .data[[enc_var]], group = dataset, color = dataset)) +
-    geom_line() + 
+  p <- ggplot(df_filtered, aes(x = month_day, y = .data[[enc_var]], group = dataset, color = dataset, linetype = dataset)) +
+    geom_line(size = 1) +  # Use dataset to determine line type for differentiation
     facet_wrap(~ exp_pov_category + enc_type, scales = "free", labeller = labeller(
       exp_pov_category = c(
         "0+1" = "Least Exposure", 
         "2+3" = "Moderate Exposure", 
         "4+5" = "High Exposure"
       )
-    )) +  # Facet by both exp_pov_category and enc_type
+    )) +  
     labs(
       title = paste("Encounters by Exposure Category and Encounter Type for", enc_var, " (2024-2025)"),
       x = "Day of 2024-2025",
-      y = paste("Number of", gsub("avg_num_", "Avg ", enc_var)),  # Clean the label for better readability
-      color = "Dataset"
+      y = paste("Number of", gsub("avg_num_", "Avg ", enc_var)),  
+      color = "Dataset",
+      linetype = "Dataset"
     ) +
-    geom_vline(xintercept = which(levels(df_filtered$month_day) == "01-07"), linetype = "dotted", color = "black", size = 0.5) +  
-    scale_color_brewer(palette = "Set1", direction = -1) +  # Customize legend labels +
-    scale_x_discrete(breaks = levels(df_filtered$month_day)[seq(1, length(levels(df_filtered$month_day)), by = 20)]) +  # Show labels every 20 days
+    geom_vline(xintercept = which(levels(df_filtered$month_day) == "01-07"), 
+               linetype = "dotted", color = "black", size = 0.3) +  
+    scale_color_brewer(palette = "Set1", direction = -1) +  
+    scale_x_discrete(breaks = levels(df_filtered$month_day)[seq(1, length(levels(df_filtered$month_day)))]) +  
     theme_light() +
     theme(legend.position = "top")
   
@@ -386,3 +409,75 @@ for(enc_var in encounter_types) {
   # Save the plot to the specified folder
   ggsave(plot_filename, plot = p, width = 10, height = 6)
 }
+
+
+
+## weekend plot
+
+
+# Convert month_day to Date format if necessary (assuming it includes a valid year)
+df_combined_weekends <- df_combined_summary %>%
+  mutate(date = as.Date(date, format = "%Y-%m-%d")) %>%
+  filter(wday(date, label = TRUE) %in% c("Sat", "Sun")) %>%
+arrange(date) %>%  # Ensure data is ordered by date
+  mutate(date_index = row_number())  # Create a numeric sequence for weekends# Keep only weekends
+
+df_combined_weekends <- df_combined_weekends %>% filter(dataset == "Updated 2/9")
+df_combined_weekends <- df_combined_weekends %>% filter(enc_type == "OP"|enc_type == "Virtual")
+df_combined_weekends <- df_combined_weekends %>% filter(exp_pov_category == "2+3"|exp_pov_category == "4+5")
+
+# Ensure enc_type is a factor and order it
+df_combined_weekends <- df_combined_weekends %>%
+  mutate(
+    enc_type = factor(enc_type, levels = sort(unique(enc_type)))  # Order alphabetically or define custom order
+  )
+
+date_labels <- df_combined_weekends %>%
+  slice(seq(1, n(), by = 20)) %>%
+  pull(date)
+
+# Plot code for each encounter type
+for(enc_var in encounter_types) {
+  
+  # Create the plot using date_index instead of date
+  # Create the plot using date_index for plotting but show actual date on x-axis
+  p <- ggplot(df_combined_weekends, aes(x = date_index, y = .data[[enc_var]])) +
+    geom_point(size = 1, color = "blue") +  # Single blue line
+    facet_wrap(~ exp_pov_category + enc_type, scales = "free", labeller = labeller(
+      exp_pov_category = c(
+        "0+1" = "Least Exposure", 
+        "2+3" = "Moderate Exposure", 
+        "4+5" = "High Exposure"
+      )
+    )) +  
+    labs(
+      title = paste("Encounters by Exposure Category and Encounter Type for", enc_var, "(Weekends Only)"),
+      x = "Date",
+      y = paste("Number of", gsub("avg_num_", "Avg ", enc_var))
+    ) +
+    geom_vline(xintercept = df_combined_weekends$date_index[df_combined_weekends$date == as.Date("2025-01-11")], 
+               linetype = "dotted", color = "red", size = 0.8, na.rm = TRUE) +  # Mark specific date if present
+    scale_x_continuous(
+      breaks = df_combined_weekends$date_index,  # Breaks based on the date_index
+      labels = ifelse(df_combined_weekends$date %in% date_labels, as.character(df_combined_weekends$date), "")  # Labels every 5th date
+    ) + 
+    theme_light() +
+    theme(
+      axis.text.x = element_text(angle = 45, hjust = 1),  # Rotate x-axis labels
+      strip.text = element_text(size = 10, face = "bold")  # Make facet labels more readable
+    )
+  
+  # Construct the full path for the plot file
+  plot_filename <- file.path(output_dir, paste0("encounters_", enc_var, "_weekends_v3.png"))
+  
+  # Save the plot to the specified folder
+  ggsave(plot_filename, plot = p, width = 10, height = 6)
+}
+
+
+# Creating total counts
+df_total <- df_filtered %>%
+  group_by(dataset, enc_type) %>%
+  summarise(across(all_of(encounter_types), sum, na.rm = TRUE), .groups = "drop")
+
+write_csv(df_total, "comparison_totals_24_25.csv")

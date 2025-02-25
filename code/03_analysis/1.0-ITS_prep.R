@@ -1,7 +1,7 @@
 #------------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/12/25------------------------------------------#
+#-------------------------Date:2/25/25------------------------------------------#
 #------------------------------------------------------------------------------#
 
 # load packages
@@ -24,8 +24,7 @@ mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disa
 
 
 # upload dataset
-#df <- read_csv("paste0(inp, ENC_EXP_DAILY_01302025.csv")  #lara will toggle on
-df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02102025_updated.csv"))
+df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02232025.csv"))
 resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
 
 ## adding respiratory viruses
@@ -94,10 +93,12 @@ df <- df %>%
 out_enc_data <- df %>%
   select(enc_type, exp_level, encounter_dt, num_enc, 
          num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
-         pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`) %>%
+         pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`, denom) %>%
   group_by(enc_type, exp_level) %>%
   nest() %>%
-  mutate(dataset_name = paste0("df_", enc_type, "_", exp_level))
+  mutate(dataset_name = paste0("df_", enc_type, "_", exp_level),
+         denom = map_dbl(data, ~mean(.x$denom, na.rm = TRUE)),  # Compute average- is same across groups
+         data = map2(data, dataset_name, ~mutate(.x, dataset_name = .y)))  # Add dataset_name column inside each dataset)
 
 # Convert to named list
 outcome_enc_datasets <- setNames(out_enc_data$data, out_enc_data$dataset_name)
@@ -132,9 +133,19 @@ for (dataset_name in names(outcome_enc_datasets)) {
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
            pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
   
-  write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
+  write.csv(df_all_cases, paste0(outp, "df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
 }
 
+# create dataset with denominator to merge in
+
+# Create a separate dataset with dataset names and denom
+denom_df <- out_enc_data %>%
+  select(dataset_name, denom)
+
+# Print or save denom_df
+print(denom_df)
+
+write.csv(denom_df, "Outputs/denoms_df.csv")
 # # Prepare time period splits
 # #time_period_datasets <- list()
 # outcome_enc_datasets <- list()

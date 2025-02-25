@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/13/25------------------------------------------#
+#-------------------------Date:2/25/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -28,8 +28,9 @@ pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc)
 
 # Server directories
 inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+#outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/testing/"
 
 # ensure consistent numeric precision ----------------------------------------------
 options(digits = 7)
@@ -38,36 +39,41 @@ options(scipen = 999)
 # Loop through datasets --------------------------------------------------------
 
 # List of dataset names
-#datasets<- c("df_Virtual_high", "df_OP_high")
-datasets<- c("df_Virtual_moderate", "df_OP_moderate")
+datasets<- c(  "df_Virtual_high", "df_OP_moderate", "df_Virtual_moderate") 
+#datasets<- ("df_Virtual_moderate")"df_OP_high",
 
 # List of encounter types to loop through
-#encounter_types <- c("num_enc_resp") test
-encounter_types <- c("num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury", "num_enc_resp")
+#encounter_types <- c("num_enc_resp") #test
+encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # Iterate over each dataset
 for (dataset_name in datasets) {
   # Iterate over each dataset
-  #df_train_test <- paste0("Outputs/df-train-test_sf_", dataset_name, ".csv") #lara will toggle on 
-  
-  df_train_test <-  paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
-  
-  df_train_test <- read.csv(here(df_train_test)) %>%
-    mutate(date = as.Date(date))
-  
   # Loop through each encounter type and create a recipe
   for (encounter_type in encounter_types) {
     
+  df_train_test <-  paste0(mod,"df-train-test_sf_", dataset_name, ".csv")
+  
+  df_train_test <- read.csv(here(df_train_test)) %>%
+    mutate(date = as.Date(date))
+
+  
+    
     # Subset the dataset to include only date and the current encounter type variable
-    df_train_test_encounter <- df_train_test %>%
-      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
-      mutate(across(where(is.numeric), as.integer)) %>%
-      arrange(date)
+  df_train_test_encounter <- df_train_test %>%
+    select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+    mutate(influenza.a = influenza.a * 10000000,
+           influenza.b = influenza.b * 10000000,
+           rsv = rsv * 10000000,
+           sars.cov2 = sars.cov2*10000000) %>%
+    mutate(across(where(is.numeric), as.integer)) %>%
+    arrange(date)
     
     # split data into training and test sets -------------------------------------
     set.seed(0112358)
     splits <- df_train_test_encounter |>
       time_series_split(
+        #assess = "75 days", 
         assess = "75 days", 
         cumulative = TRUE,
         date_var = date
@@ -91,11 +97,14 @@ for (dataset_name in datasets) {
       step_timeseries_signature(date) |>
       step_holiday(date, holidays = timeDate::listHolidays("US")) |>
       # Minimal seasonal components
-      step_fourier(date, period = 7, K = 1) |>  # Weekly seasonality with minimal terms
+      step_fourier(date, period = 7, K = 2) |>  # Weekly seasonality with minimal terms
+      step_mutate(weekend = factor(if_else(wday(date, week_start = 1) %in% c(6, 7), "weekend", "weekday"))) |>
+      step_dummy(weekend) |> 
       # cleaning steps
       step_rm(matches("(.iso$)|(.xts$)|(.minute)|(.second)|(.hour)|(.am.pm)")) |>
       step_zv() |>
-      step_corr(all_numeric_predictors(), threshold = 0.9) |> # Remove highly correlated features
+      #step_corr(all_numeric_predictors(), threshold = 0.9) |> # Remove highly correlated features, changed to 0.7 for respiratory Virtual visits
+      #step_filter(year(date)>2022) |> #only for respiratory Virtual visits
       step_normalize(all_numeric_predictors()) |>
       step_dummy(all_nominal())
     
@@ -119,7 +128,7 @@ for (dataset_name in datasets) {
       set_engine("prophet_xgboost",
                  set.seed = 0112358,
                  early_stop = TRUE,
-                 validation = 0.2)  # Add early stopping
+                 validation = 0.2)  # Add early stopping #
     
     # generate grid for tuning ---------------------------------------------------
     grid_phxgb_tune <- grid_space_filling(
@@ -182,7 +191,6 @@ best_params <- tune_results_phxgb |> select_best(metric = "rmse")
 print(best_params)
 # save the results ---------------------------------------------------
 #rm(df_train_test)
-#save.image(here("Outputs", "1.3-model-tune-phxgb-final.RData"))
-save.image(file = here(mod, paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")))
+save.image(file = here(outp, paste0("1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type, ".RData")))
 }  # End of encounter type loop
 }  # End of dataset loop
