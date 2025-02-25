@@ -16,13 +16,19 @@ set.seed(0112358)
 pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc)
 
 # Lara directories
-inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+# outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+
+# Server directories
+inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
 # List of dataset names
 # used for testing
-datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
+datasets<- c("df_Virtual_moderate")
+  #"high", "df_OP_high", "df_ED_high", "df_IP_high")
 
 #datasets<- c(  "df_ED_high", "df_IP_high")
 #"df_Virtual_high",
@@ -42,8 +48,8 @@ datasets<- c("df_Virtual_high", "df_OP_high", "df_ED_high", "df_IP_high")
 # )
 
 # List of encounter types to loop through
-#encounter_types <- c("num_enc")
-encounter_types <- c( "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
+encounter_types <- c("num_enc_resp")
+#encounter_types <- c( "num_enc_cardio", "num_enc_resp", "num_enc_neuro", "num_enc_injury")
 # Iterate over each dataset
 for (dataset_name in datasets) {
   # Iterate over each dataset
@@ -59,8 +65,10 @@ for (dataset_name in datasets) {
     
     # Subset the dataset to include only date and the current encounter type variable
     df_train_test_encounter <- df_train_test %>%
-      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%
-      mutate(across(all_of(encounter_type), as.numeric)) #%>%
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+     # mutate(across(all_of(encounter_type), as.numeric)) #%>%
+      mutate(across(where(is.numeric), as.integer)) %>%
+      arrange(date)
       #filter(date<="2024-01-31")
     
 # split data into training and test sets -------------------------------------
@@ -77,10 +85,10 @@ splits <- df_train_test_encounter |>
 set.seed(0112358)
 resamples_kfold <- training(splits) |>
   # resamples_kfold_resp <- training(splits) |> 
-   vfold_cv(v = 10, strata = date)
+   #vfold_cv(v = 10, strata = date)
   # NOTE: replace function with simpler version
     time_series_cv(
-    assess = "30 days",     # Length of each assessment period
+    assess = "40 days",     # Length of each assessment period
     #initial = "5 days",     # Initial training period
     slice_limit = 8,        # Number of slices to create
     cumulative = TRUE       # Use expanding window
@@ -93,11 +101,14 @@ formula <- as.formula(paste(encounter_type, "~ ."))
 rec_obj_arima <- recipe(formula, training(splits)) %>%
   
   # add Fourier terms for yearly seasonality
-  step_fourier(date, period = 7, K = 2) %>% # NOTE: change period to 7 for weekly, 30 for monthly, K=2?
+  step_fourier(date, period = 30, K = 2) %>% # NOTE: change period to 7 for weekly, 30 for monthly, K=2?
   
   # clean up and normalize
   step_rm(matches("(.iso$)|(.xts$)")) %>%
-  step_normalize(matches("(index.num$)|(_year$)|tmmx|tmmn|rmax|rmin|pr|vs|srad")) |>
+  step_zv() |>
+  step_normalize(matches("(index.num$)|(_year$)")) |>
+  
+ # step_normalize(matches("(index.num$)|(_year$)|tmmx|tmmn|rmax|rmin|pr|vs|srad||influenza.a|influenza.b|rsv|sars.cov2")) |>
   step_dummy(all_nominal())
 
 ### Review the recipe 
