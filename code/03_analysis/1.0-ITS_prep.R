@@ -25,10 +25,14 @@ mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disa
 
 # upload dataset
 #df <- read_csv("paste0(inp, ENC_EXP_DAILY_01302025.csv")  #lara will toggle on
+## LBW: what is the toggling comment about? Also, we should name these dfs more descriptively to make it easier! 
 df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02102025_updated.csv"))
-resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
+# resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
+resp_virus<- read_csv(paste0(inp,"resp-virus-dat_all.csv"))
+
 
 ## adding respiratory viruses
+# LBW: what is this doing?? 
 resp_virus_long <- resp_virus %>%
   pivot_longer(cols = `2022-2023`:`2024-2025`, 
                names_to = "time_period", 
@@ -68,12 +72,18 @@ df <- df %>%
   select(-c(time_period))
 
 # add meterological covariates
-cov <- read_csv("data/01_raw/gridmet_cov_exp_level.csv") %>%
+# LBW: we should read all the data in at the top! 
+cov <- read_csv(paste0(inp, "gridmet_cov_exp_level.csv")) %>%
   mutate(encounter_dt = date) %>%
   select(-date)
+# cov <- read_csv("data/01_raw/gridmet_cov_exp_level.csv") %>%
+#   mutate(encounter_dt = date) %>%
+#   select(-date)
 
 df <- full_join(df, cov) %>%
   drop_na(enc_type)
+  # LBW: should this be a left join? why do we want cov values where we dont have encounter vals? 
+    # i think you are basically doing a left join by dropping the nas. 
 
 
 # Ensure date column is in Date format
@@ -91,6 +101,7 @@ df <- df %>%
   drop_na(time_period)  # Remove rows outside defined time periods
 
 # Create datasets split by encounter type and exposure level
+# LBW:can we add a comment here to explain the goal? i am a little confused about exactly what we are trying to do! 
 out_enc_data <- df %>%
   select(enc_type, exp_level, encounter_dt, num_enc, 
          num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
@@ -134,7 +145,10 @@ for (dataset_name in names(outcome_enc_datasets)) {
            pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
 
   
-  write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
+  # write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
+  write.csv(df_all_cases, paste0(outp, "df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
+  # LBW: use the directories you made at the start! 
+
 }
 
 # # Prepare time period splits

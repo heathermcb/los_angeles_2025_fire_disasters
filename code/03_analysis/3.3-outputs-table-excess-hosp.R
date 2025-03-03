@@ -43,7 +43,7 @@ for (dataset_name in datasets) {
   for (encounter_type in encounter_types) {
   
   # Read the forecast data for the current dataset
-  df_forecast <- readRDS(here("Outputs", paste0("3.2-final-preds_", dataset_name, ".rds")))
+  df_forecast <- readRDS(here("03_output", paste0("3.2-final-preds_", dataset_name, ".rds")))
   
   # Extract the .model_desc from the best model
   # Check if the value exists and is not NA or empty before assigning it
