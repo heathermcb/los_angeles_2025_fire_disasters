@@ -1,48 +1,31 @@
 #------------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/12/25------------------------------------------#
-#------------------------------------------------------------------------------#
+#-----------------Last update:3/4/25------------------------------------------#
 
+## Purpose: Prepping data for ITS analysis
+#---------------Load packages -------------------------------------------------#
 # load packages
 if (!requireNamespace('pacman', quietly = TRUE)) {install.packages('pacman')}
 pacman::p_load(readr, dplyr, tidyr, purrr, lubridate, MMWRweek)
 
-# directories
+# Nina directories
 #inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
 #outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
 
-# Lara directories
-#inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-#outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-#mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-
 # Server directories
 inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
 
-
+#---------------------- Data upload and prep-----------------------------------#
 # upload dataset
-#df <- read_csv("paste0(inp, ENC_EXP_DAILY_01302025.csv")  #lara will toggle on
-## LBW: what is the toggling comment about? Also, we should name these dfs more descriptively to make it easier! 
-df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02102025_updated.csv"))
-# resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
-resp_virus<- read_csv(paste0(inp,"resp-virus-dat_all.csv"))
+df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02232025.csv"))
+resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
 
-
-## adding respiratory viruses
-# LBW: what is this doing?? 
-resp_virus_long <- resp_virus %>%
-  pivot_longer(cols = `2022-2023`:`2024-2025`, 
-               names_to = "time_period", 
-               values_to = "value")%>%
-  pivot_wider(names_from = resp_virus, values_from = value) %>%
-  mutate(year = case_when(
-    week < 40 ~ as.numeric(sub(".*-(\\d{4})", "\\1", time_period)),  # Extract second part
-    week >= 40 ~ as.numeric(sub("(\\d{4})-.*", "\\1", time_period))  # Extract first part
-  ))
-
+# add meterological covariates
+cov <- read_csv(paste0(inp, "gridmet_cov_exp_level.csv")) %>%
+  mutate(encounter_dt = date) %>%
+  select(-date)
 
 # Define exposure levels based on 'exp_pov'
 df <- df %>%
@@ -56,40 +39,40 @@ df <- df %>%
   ) %>%
   filter(!is.na(exp_level))  # Remove rows with NA (which corresponds to "Other")
 
+#---------------------- Merging in Covariates----------------------------------#
+
+## Restructuring datasets to be merged in
+resp_virus_long <- resp_virus %>%
+  pivot_longer(cols = `2022-2023`:`2024-2025`, 
+               names_to = "time_period", 
+               values_to = "value")%>%
+  pivot_wider(names_from = resp_virus, values_from = value) %>%
+  mutate(year = case_when(
+    week < 40 ~ as.numeric(sub(".*-(\\d{4})", "\\1", time_period)),  # Extract second part
+    week >= 40 ~ as.numeric(sub("(\\d{4})-.*", "\\1", time_period))  # Extract first part
+  ))
+
+
 df <- df %>%
   select(-exp_pov) %>%  # Remove the 'exp_pov' variable
   group_by(exp_level, enc_type, encounter_dt) %>%
   summarise(across(everything(), sum, na.rm = TRUE)) %>%
   mutate(encounter_dt = mdy(encounter_dt),
          mmwr_week=MMWRweek(encounter_dt)$MMWRweek,
-        year=year(encounter_dt)) # create MMWR week variable
-       
+         year=year(encounter_dt)) # create MMWR week variable
 
-# add in flu/rsv data
-# Merge both datasets based on week and year
+# add in flu/rsv data- merge both datasets based on week and year
 df <- df %>%
   left_join(resp_virus_long, by = c("mmwr_week" = "week", "year")) %>%
   select(-c(time_period))
 
-# add meterological covariates
-# LBW: we should read all the data in at the top! 
-cov <- read_csv(paste0(inp, "gridmet_cov_exp_level.csv")) %>%
-  mutate(encounter_dt = date) %>%
-  select(-date)
-# cov <- read_csv("data/01_raw/gridmet_cov_exp_level.csv") %>%
-#   mutate(encounter_dt = date) %>%
-#   select(-date)
-
-df <- full_join(df, cov) %>%
-  drop_na(enc_type)
-  # LBW: should this be a left join? why do we want cov values where we dont have encounter vals? 
-    # i think you are basically doing a left join by dropping the nas. 
-
+# Merge in environmental covaraites
+df <- left_join(df, cov) 
 
 # Ensure date column is in Date format
 df <- df %>% 
   mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y")) %>%
-# Define time periods
+  # Define time periods
   mutate(
     time_period = case_when(
       date >= ymd("2022-11-01") & date <= ymd("2023-01-31") ~ 1,
@@ -101,18 +84,20 @@ df <- df %>%
   drop_na(time_period)  # Remove rows outside defined time periods
 
 # Create datasets split by encounter type and exposure level
-# LBW:can we add a comment here to explain the goal? i am a little confused about exactly what we are trying to do! 
 out_enc_data <- df %>%
   select(enc_type, exp_level, encounter_dt, num_enc, 
          num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
-         pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`) %>%
-
+         pr, tmmx, tmmn, rmin, rmax, vs, srad, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`, denom) %>%
   group_by(enc_type, exp_level) %>%
   nest() %>%
-  mutate(dataset_name = paste0("df_", enc_type, "_", exp_level))
+  mutate(dataset_name = paste0("df_", enc_type, "_", exp_level),
+         denom = map_dbl(data, ~mean(.x$denom, na.rm = TRUE)),  # Compute average- is same across groups
+         data = map2(data, dataset_name, ~mutate(.x, dataset_name = .y)))  # Add dataset_name column inside each dataset)
 
 # Convert to named list
 outcome_enc_datasets <- setNames(out_enc_data$data, out_enc_data$dataset_name)
+
+#--------------- create csvs of data for analysis----------------------------#
 
 # Iterate through datasets and save as CSV
 for (dataset_name in names(outcome_enc_datasets)) {
@@ -124,7 +109,7 @@ for (dataset_name in names(outcome_enc_datasets)) {
       date = as.Date(encounter_dt),
       month_day = format(date, "%m-%d"),
       year = year(date),
-      postjan7 = ifelse(month_day < "01-07" | month_day > "01-31", 0, 1)
+      postjan7 = ifelse(month_day < "01-07" | month_day > "01-21", 0, 1)
     ) %>%
     filter(!(month_day > "01-06" & year == 2025)) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
@@ -138,101 +123,25 @@ for (dataset_name in names(outcome_enc_datasets)) {
       date = as.Date(encounter_dt),
       month_day = format(date, "%m-%d"),
       year = year(date),
-      postjan7 = ifelse(month_day < "01-07" | month_day > "01-31", 0, 1)
+      postjan7 = ifelse(month_day < "01-07" | month_day > "01-21", 0, 1)
     ) %>%
-   # filter(!(month_day >= "01-27" & month_day <= "02-01")) %>%
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
            pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
-
   
-  # write.csv(df_all_cases, paste0("Outputs/df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
-  write.csv(df_all_cases, paste0(outp, "df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
-  # LBW: use the directories you made at the start! 
-
+  write.csv(df_all_cases, paste0(mod, "df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
 }
 
-# # Prepare time period splits
-# #time_period_datasets <- list()
-# outcome_enc_datasets <- list()
-# 
-# # for (period_name in names(time_periods)) {
-# #   period <- time_periods[[period_name]]
-# #   
-# #   # Filter data for the specific time period
-# #   period_data <- df %>%
-# #     filter(date >= period$start & date <= period$end)
-# #   
-#   # Split by encounter type and exposure level for each time period
-# out_enc_data <- df %>%
-#   
-#  # period_split_data <- df %>%
-#     select(enc_type, exp_level, encounter_dt, num_enc, 
-#            num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury,
-#            pr, tmmx, tmmn, rmin, rmax, vs, srad) %>%
-#     group_by(enc_type, exp_level) %>%
-#     nest() %>%
-#     mutate(dataset_name = paste0("df_", "_", enc_type, "_", exp_level))
-#  # mutate(dataset_name = paste0("df_", period_name, "_", enc_type, "_", exp_level))
-#   
-#   # Create named list of datasets for this time period
-# outcome_enc_datasets <- setNames(
-#     out_enc_data %>% pull(data),
-#     out_enc_data$dataset_name
-#   )
-# 
-#   # Store in time period datasets
-#   outcome_enc_datasets[[dataset_name]] <- out_enc_data
-#   
-#   # Create global environment datasets for this time period
-#   #for (dataset_name in names(period_dataset_list)) {
-#     #for (dataset_name in names(outcome_enc_datasets)) {
-# for (dataset_name in datasets) {
-#     #dataset <- period_dataset_list[[dataset_name]]
-#     
-#     # Create df_train_test dataset ----------------
-#     df_train_test <- dataset %>%
-#       mutate(
-#         date = as.Date(encounter_dt, format = "%m/%d/%Y"),
-#         month_day = format(date, "%m-%d"),
-#         year = year(date)
-#       ) %>%
-#       arrange(date) %>%
-#       mutate(jan7=
-#       # Apply the filtering condition for train-test split
-#      ifelse((month_day < "01-07" | month_day > "01-31"), 0, 1) ) %>%
-#       filter(!(month_day >= "01-06" & year==2025)) %>%
-#       select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
-#              pr, tmmx, tmmn, rmin, rmax, vs, srad)
-#     
-#     # Dynamically generate the file name to save the df_train_test CSV
-#     output_filename_train_test <- paste0(outp,"df-train-test_sf_", dataset_name, ".csv")
-#     
-#     # Save the df_train_test dataset as a CSV file
-#     write.csv(df_train_test, output_filename_train_test, row.names = FALSE) 
-#     
-#     # Create df_all_cases dataset ----------------
-#     df_all_cases <- dataset %>%
-#       mutate(
-#         date = as.Date(encounter_dt, format = "%m/%d/%Y"),
-#         month_day = format(date, "%m-%d"),
-#         year = year(date)
-#       ) %>%
-#       arrange(date) %>%
-#       filter(!(month_day >= "01-27" & month_day <= "02-01")) %>%
-#       # You could uncomment the next line if you want a different filter condition
-#       # filter(month_day < "01-07" | month_day > "01-31") %>%
-#       select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
-#              pr, tmmx, tmmn, rmin, rmax, vs, srad)
-#     
-#     # Dynamically generate the file name to save the df_all_cases CSV
-#     output_filename_all_cases <- paste0("Outputs/df-predict-sf_", dataset_name, ".csv") # lara will toggle on
-#   #  output_filename_all_cases <- paste0(outp,"df-predict-sf_", dataset_name, ".csv") 
-#     
-#     # Save the df_all_cases dataset as a CSV file
-#     write.csv(df_all_cases, output_filename_all_cases, row.names = FALSE)
-#   }
-# #}
+#--------------- create denominator data for analysis----------------------------#
+# create dataset with denominator to merge in
 
+# Create a separate dataset with dataset names and denom
+denom_df <- out_enc_data %>%
+  select(dataset_name, denom)
+
+# Print or save denom_df
+print(denom_df)
+
+write.csv(denom_df, paste0(mod, "denoms_df.csv"))
 
 # Clean up
 rm(list = ls())

@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/10/25------------------------------------------#
+#-----------------Last update:2/28/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -65,7 +65,7 @@
 #' )
 #' }
 
-# Function to generate forecast intervals
+#---------------Function to generate forecast intervals-------------------------------#
 generate_forecast_intervals <- function(
     model_spec,             
     training_data,    
@@ -135,8 +135,8 @@ generate_forecast_intervals <- function(
     return(results)
 }
 
+#-----------Function to generate forecast values (no eCIs)-----------------------#
 
-## function to only predict values (no confidence intervals)
 
 generate_forecast_values <- function(
     model_spec,             
