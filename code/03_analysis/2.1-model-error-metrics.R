@@ -3,6 +3,7 @@
 #-------------------------R code-----------------------------------------------#
 #-----------------Last update:3/4/25------------------------------------------#
 
+
 # Code adapted from the following project:
 
 # @project: Two-stage interrupted time series design
@@ -34,6 +35,7 @@ options(scipen = 999)
 # List of dataset names
 datasets<- c( "df_Virtual_high")
 #datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
+
 
 
 # List of encounter types to loop through
@@ -73,7 +75,37 @@ for (dataset_name in datasets) {
       mutate(across(where(is.numeric), as.integer)) %>%
       #filter(date>= "2023-01-01") %>% # for respiratory only
       arrange(date)
-  
+      # select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
+
+    
+    
+#load tuned models ---------------------------------------------------
+# # Load ARIMA model
+# arima_filename <- paste0("Outputs/", "1.1-model-tune-arima-final_", dataset_name, "_", encounter_type, ".RData")
+# load(here(arima_filename))
+# #print(paste("Loaded ARIMA model for",encounter_type,  dataset_name))
+
+  # -----------------------------------------------
+  # # Load NNETAR model
+  # rm(list = ls(pattern = "num_enc_neuro"))
+  # nnetar_filename <- paste0("Outputs/", "1.2-model-tune-nnetar-final_", dataset_name, "_", encounter_type, ".RData")
+  # load(here(nnetar_filename))
+  # #print(paste("Loaded NNETAR model for",encounter_type,  dataset_name))
+
+  # -----------------------------------------------
+ #  # Load Prophet-XGBoost model
+   rm(list = ls(pattern = encounter_type))
+ # phxgb_filename <- paste0("Outputs/", "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData") #lara will toggle on
+  phxgb_filename <- paste0(mod, "1.3-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+  load(here(phxgb_filename))
+ #  #print(paste("Loaded Prophet-XGBoost model for",encounter_type,  dataset_name))
+ # #  # -----------------------------------------------
+  # Load model table with best models
+  # Construct file path
+  model_tbl_filename <- paste0(mod, "2.1-model-select-best_", dataset_name, "_", encounter_type, ".rds")
+  # load model table with best models ---------------------------------------------------
+  model_tbl_best_all <- readRDS(here(model_tbl_filename))
+
 # -----------------------------------------------
  #  # Load Prophet-XGBoost model
     # Create a temporary environment

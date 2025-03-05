@@ -59,8 +59,8 @@ df <- df %>%
   summarise(across(everything(), sum, na.rm = TRUE)) %>%
   mutate(encounter_dt = mdy(encounter_dt),
          mmwr_week=MMWRweek(encounter_dt)$MMWRweek,
-        year=year(encounter_dt)) # create MMWR week variable
-       
+         year=year(encounter_dt)) # create MMWR week variable
+
 # add in flu/rsv data- merge both datasets based on week and year
 df <- df %>%
   left_join(resp_virus_long, by = c("mmwr_week" = "week", "year")) %>%
@@ -72,7 +72,7 @@ df <- left_join(df, cov)
 # Ensure date column is in Date format
 df <- df %>% 
   mutate(date = as.Date(encounter_dt, format = "%m/%d/%Y")) %>%
-# Define time periods
+  # Define time periods
   mutate(
     time_period = case_when(
       date >= ymd("2022-11-01") & date <= ymd("2023-01-31") ~ 1,

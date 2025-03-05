@@ -36,8 +36,8 @@ for (dataset_name in datasets) {
   
   # Loop through each encounter type and create a recipe
   for (encounter_type in encounter_types) {
- 
-# load model table with best models ---------------------------------------------------
+    
+    # load model table with best models ---------------------------------------------------
     
     # Create a temporary environment
     temp_env <- new.env()
@@ -65,71 +65,71 @@ for (dataset_name in datasets) {
     model_tbl_best <- modeltime_table(
       wflw_fit_phxgb_tuned
     )
-
-# source script for bootstrap ---------------------------------------------------
-source(here("code/03_analysis/", "3.1-func-generate-MC-CIs.R"))
-
-# ensure consistent numeric precision ----------------------------------------------
-options(digits = 7)
-options(scipen = 999)
-
-# load data ---------------------------------------------------
-preintervention_filename <- paste0(mod,"df-train-test_sf_", dataset_name, ".csv") 
-df_preintervention <- read.csv(here(preintervention_filename)) %>%
-  mutate(date = as.Date(date)) %>%
-  select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
-  mutate(influenza.a = influenza.a * 10000000,
-         influenza.b = influenza.b * 10000000,
-         rsv = rsv * 10000000,
-         sars.cov2 = sars.cov2*10000000) %>%
-  mutate(across(where(is.numeric), as.integer)) %>%      
-  #filter(date>= "2023-01-01") %>% # for resp Virtual
-  arrange(date)
-  
-all_cases_filename <-  paste0(mod,"df-predict-sf_", dataset_name, ".csv") 
-df_all_cases <- read.csv(here(all_cases_filename)) %>%
-  mutate(date = as.Date(date)) %>%
-  select(date, all_of(encounter_type), sars.cov2, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv) %>%
-  mutate(influenza.a = influenza.a * 10000000,
-         influenza.b = influenza.b * 10000000,
-         rsv = rsv * 10000000,
-         sars.cov2 = sars.cov2*10000000) %>%     
-  mutate(across(where(is.numeric), as.integer)) %>%
- # filter(date>= "2023-01-01") %>% # for resp Virtual
-  arrange(date)
-
-workflow_best <- model_tbl_best$.model[[1]]  # Extract the first model
-
-trained_recipe <- workflow_best |> extract_recipe()
-
-## Bake the variables to the full dataset
-new_vars <- bake(trained_recipe, df_all_cases)  %>% #bakes in model and adds prediction variables
-  select(-any_of(names(df_all_cases)))  # Removes columns that already exist
-
-df_all_cases <- bind_cols(df_all_cases, new_vars) #combines baked variables with original 
-
-#forecast on all cases with bootstrapped CIs ------------------------------------------
-forecast_cis <- generate_forecast_intervals(
-  model_spec = model_tbl_best,
-  training_data = df_preintervention,
-  forecast_horizon_data = df_all_cases, 
-  n_iterations = 1000
-)
-
-colnames(forecast_cis) <- c("date", "num_pred", "conf_lo", "conf_hi")
-
-# Merge with actuals ---------------------------------------------------
-df_forecast <- df_all_cases |>
-    rename(num_cases = encounter_type) |>
-    select(date, num_cases)  |>
-    left_join(forecast_cis, by = "date") |>
-    arrange(date) |>
-    mutate(time=row_number(),
-           residuals=(num_pred-num_cases))
-  
-
-# save final predictions ---------------------------------------------------
-final_pred_filename <- paste0(outp, "3.2-final-preds_", dataset_name, "_", encounter_type, ".rds")
-df_forecast |> saveRDS(here(final_pred_filename))
+    
+    # source script for bootstrap ---------------------------------------------------
+    source(here("code/03_analysis/", "3.1-func-generate-MC-CIs.R"))
+    
+    # ensure consistent numeric precision ----------------------------------------------
+    options(digits = 7)
+    options(scipen = 999)
+    
+    # load data ---------------------------------------------------
+    preintervention_filename <- paste0(mod,"df-train-test_sf_", dataset_name, ".csv") 
+    df_preintervention <- read.csv(here(preintervention_filename)) %>%
+      mutate(date = as.Date(date)) %>%
+      select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
+      mutate(influenza.a = influenza.a * 10000000,
+             influenza.b = influenza.b * 10000000,
+             rsv = rsv * 10000000,
+             sars.cov2 = sars.cov2*10000000) %>%
+      mutate(across(where(is.numeric), as.integer)) %>%      
+      #filter(date>= "2023-01-01") %>% # for resp Virtual
+      arrange(date)
+    
+    all_cases_filename <-  paste0(mod,"df-predict-sf_", dataset_name, ".csv") 
+    df_all_cases <- read.csv(here(all_cases_filename)) %>%
+      mutate(date = as.Date(date)) %>%
+      select(date, all_of(encounter_type), sars.cov2, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv) %>%
+      mutate(influenza.a = influenza.a * 10000000,
+             influenza.b = influenza.b * 10000000,
+             rsv = rsv * 10000000,
+             sars.cov2 = sars.cov2*10000000) %>%     
+      mutate(across(where(is.numeric), as.integer)) %>%
+      # filter(date>= "2023-01-01") %>% # for resp Virtual
+      arrange(date)
+    
+    workflow_best <- model_tbl_best$.model[[1]]  # Extract the first model
+    
+    trained_recipe <- workflow_best |> extract_recipe()
+    
+    ## Bake the variables to the full dataset
+    new_vars <- bake(trained_recipe, df_all_cases)  %>% #bakes in model and adds prediction variables
+      select(-any_of(names(df_all_cases)))  # Removes columns that already exist
+    
+    df_all_cases <- bind_cols(df_all_cases, new_vars) #combines baked variables with original 
+    
+    #forecast on all cases with bootstrapped CIs ------------------------------------------
+    forecast_cis <- generate_forecast_intervals(
+      model_spec = model_tbl_best,
+      training_data = df_preintervention,
+      forecast_horizon_data = df_all_cases, 
+      n_iterations = 1000
+    )
+    
+    colnames(forecast_cis) <- c("date", "num_pred", "conf_lo", "conf_hi")
+    
+    # Merge with actuals ---------------------------------------------------
+    df_forecast <- df_all_cases |>
+      rename(num_cases = encounter_type) |>
+      select(date, num_cases)  |>
+      left_join(forecast_cis, by = "date") |>
+      arrange(date) |>
+      mutate(time=row_number(),
+             residuals=(num_pred-num_cases))
+    
+    
+    # save final predictions ---------------------------------------------------
+    final_pred_filename <- paste0(outp, "3.2-final-preds_", dataset_name, "_", encounter_type, ".rds")
+    df_forecast |> saveRDS(here(final_pred_filename))
   }  # End of encounter type loop
 }  # End of dataset loop
