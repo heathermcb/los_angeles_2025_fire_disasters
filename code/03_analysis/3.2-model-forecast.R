@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:2/24/25------------------------------------------#
+#-----------------Last update:2/28/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -16,23 +16,20 @@ rm(list = ls())
 set.seed(0112358)
 pacman::p_load(here, tidymodels, tidyverse, modeltime)
 
-# # Lara directories
-# inp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-# outp <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-# mod <- "/Users/larasch/Documents/UCB_postdoc/Research/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-
 # Server directories
 inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
 mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-#outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/testing/"
+outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
 
+# load data ---------------------------------------------------
 # List of dataset names
-#datasets<- c("df_Virtual_high", "df_OP_high", "df_OP_moderate", "df_Virtual_moderate") #, "df_OP_moderate")
-datasets<- c("df_OP_high", "df_Virtual_high") #,"df_Virtual_moderate", "df_Virtual_least")
+datasets<- c( "df_Virtual_high")
+#datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
+
+
 # List of encounter types to loop through
-#encounter_types <- c("num_enc") #test "num_enc_resp",
-encounter_types <- c( "num_enc",  "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
+encounter_types <- c("num_enc")
+#encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
@@ -41,9 +38,33 @@ for (dataset_name in datasets) {
   for (encounter_type in encounter_types) {
  
 # load model table with best models ---------------------------------------------------
-model_tbl_best_all <- readRDS(paste0(outp, "2.1-model-select-best_" , dataset_name, "_", encounter_type, ".rds"))
-
-model_tbl_best <- model_tbl_best_all ##|> filter(str_detect(.model_desc, best_model_desc)) # Prophet was identified as the best model in script 2.2
+    
+    # Create a temporary environment
+    temp_env <- new.env()
+    
+    #Prophet + XGBoost
+    set.seed(0112358)
+    
+    phxgb_filename <- paste0(outp, "1.1-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+    load(here(phxgb_filename), envir = temp_env)
+    print(paste("Loaded Prophet-XGBoost model for",encounter_type,  dataset_name))
+    splits<-temp_env$splits
+    #  -----------------------------------------------
+    # Tune model
+    wflw_phxgb_tune <- temp_env$wflw_phxgb_tune
+    tune_results_phxgb <- temp_env$tune_results_phxgb
+    splits <- temp_env$splits  
+    
+    wflw_fit_phxgb_tuned <- wflw_phxgb_tune |>
+      finalize_workflow(select_best(tune_results_phxgb, metric = "rmse")) |>
+      fit(training(splits))
+    
+    
+    # step-2: generate modeltime table ---------------------------------------------------
+    set.seed(0112358)
+    model_tbl_best <- modeltime_table(
+      wflw_fit_phxgb_tuned
+    )
 
 # source script for bootstrap ---------------------------------------------------
 source(here("code/03_analysis/", "3.1-func-generate-MC-CIs.R"))
@@ -81,11 +102,11 @@ workflow_best <- model_tbl_best$.model[[1]]  # Extract the first model
 
 trained_recipe <- workflow_best |> extract_recipe()
 
-## adding this code (feb 21s)
+## Bake the variables to the full dataset
 new_vars <- bake(trained_recipe, df_all_cases)  %>% #bakes in model and adds prediction variables
   select(-any_of(names(df_all_cases)))  # Removes columns that already exist
 
-df_all_cases <- bind_cols(df_all_cases, new_vars)
+df_all_cases <- bind_cols(df_all_cases, new_vars) #combines baked variables with original 
 
 #forecast on all cases with bootstrapped CIs ------------------------------------------
 forecast_cis <- generate_forecast_intervals(
