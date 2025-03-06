@@ -1,6 +1,6 @@
 # los_angeles_2025_fire_disasters
 
-## The 2025 Los Angeles Wildfires and Short-Term Outpatient Acute Healthcare Utilization
+# The 2025 Los Angeles Wildfires and Short-Term Outpatient Acute Healthcare Utilization
 Authors: Joan A. Casey,  Yuqian M. Gu, Lara Schwarz, Timothy B. Frankland, Lauren B. Wilner, Heather McBrien, Nina M. Flores, Arnab K. Dey, Gina
 S. Lee, Chen Chen,  Tarik Benmarhnia, Sara Y. Tartof
 
