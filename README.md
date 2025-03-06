@@ -56,12 +56,12 @@ These scripts contain the following variables:
 1.0-ITS-prep.R
 This scripts prepares the data for the modelling including merging environmental and wastewater surveillance data with the KPSC data. Datasets are then processed by type of visit (Outpatient, Virtual) and encounter type (Overall, Respiratory, Cardiovascular, Neuro-psychiatric, Injury)
 
-## Model development scripts
+## Model development script
 
 1.1-model-tune-phyxgb.R 
 This script configures, tunes, and fits a Prophet-XGBoost model to the aggregated data. It combines Facebook Prophet for trend/seasonality with XGBoost for residuals, using a space-filling grid of 100 combinations.
 
-## Model training and testing scripts
+## Model training and testing script
 
 2.1-model-error-metrics.R
 This script loads the model from scrips above and calculates training and testing errors for model fit. 
