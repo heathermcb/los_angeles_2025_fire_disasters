@@ -24,6 +24,7 @@ This section describes the variables present in the datasets used in the study. 
 * df-predict.csv is used to predict hospitalizations under the counterfactual scenario.
 
 These scripts contain the following variables:
+
 **Outcome variables**
 - num_enc: daily total visits (OP/Virtual)
 - num_enc_cardio: daily cardiovascular visits (OP/Virtual)
