@@ -27,11 +27,11 @@ rootdir_sp <- paste0("/Users/laurenwilner/Library/CloudStorage/OneDrive-SharedLi
 rootdir_sp_studies <-  paste0(rootdir_sp, "studies/")
 rootdir_sp_kaiser_la <- paste0(rootdir_sp_studies, "kaiser_la/")
 
-results <- read_csv(paste0(rootdir_prj, "results_feb27_v3.csv")) %>% 
+results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_9may2025.csv")) %>% 
   mutate(dataset_name = str_remove(dataset_name, "^df_")) %>%
   separate(dataset_name, into = c("visit_type", "exposure"), sep = "_", remove = FALSE) %>% 
   mutate_at(c("exposure", "visit_type", "encounter_type"), as.factor)  %>% 
-  mutate(visit_encounter = paste0(visit, "_", encounter_type)) %>% 
+  mutate(visit_encounter = paste0(visit_type, "_", encounter_type)) %>% 
   mutate(exposure = ifelse(exposure == "moderate", "Moderately", "Highly"),
         date = as.Date(date, format = "%m/%d/%y"), 
         Weekday = weekdays(date))
@@ -181,8 +181,8 @@ for(visit in visit_types) {
       result_table <- create_encounter_table(results, exposure_level, visit, metric)
       
       # make the pretty table
-      filename <- paste0(rootdir_sp_kaiser_la, "output/table_", visit, "_", exposure_level, metric, ".png")
-      filename_html <- paste0(rootdir_sp_kaiser_la, "output/table_", visit, "_", exposure_level, metric, ".html")
+      filename <- paste0(rootdir_sp_kaiser_la, "output/may2025/table_", visit, "_", exposure_level, metric, ".png")
+      filename_html <- paste0(rootdir_sp_kaiser_la, "output/may2025/table_", visit, "_", exposure_level, metric, ".html")
       pretty_table <- make_pretty_table(result_table, filename)
       
     }
