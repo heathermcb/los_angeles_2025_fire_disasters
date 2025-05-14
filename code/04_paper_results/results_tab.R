@@ -1,4 +1,4 @@
-results <- read_csv(paste0(rootdir_prj, "results_feb27_v3.csv")) %>% 
+results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_feb27_v3.csv")) %>% 
   filter(date <= "2025-01-13") %>%   # filter out post jan 11 to make just weekday plot
   mutate(dataset_name = str_remove(dataset_name, "^df_")) %>%
   separate(dataset_name, into = c("visit_type", "exposure"), sep = "_", remove = FALSE) %>% 

@@ -27,7 +27,7 @@ rootdir_sp_studies <-  paste0(rootdir_sp, "studies/")
 rootdir_sp_kaiser_la <- paste0(rootdir_sp_studies, "kaiser_la/")
 
 # read in data and split cols for easy plotting ---------------------------
-results <- read_csv(paste0(rootdir_prj, "results_feb27_v3.csv")) %>% 
+results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_9may2025.csv")) %>% 
   filter(date < "2025-01-11") %>%   # filter out post jan 11 to make just weekday plot
   mutate(dataset_name = str_remove(dataset_name, "^df_")) %>%
   separate(dataset_name, into = c("visit_type", "exposure"), sep = "_", remove = FALSE) %>% 
@@ -196,7 +196,7 @@ full_excess <- (op_excess | virtual_excess) +
   theme(legend.position = "bottom")
 
 # now write it out! 
-png(paste0(rootdir_sp_kaiser_la, "output/full_excess.png"), width = 20, height = 22, units = "in", res = 300)
+png(paste0(rootdir_sp_kaiser_la, "output/may2025/full_excess.png"), width = 20, height = 22, units = "in", res = 300)
 print(full_excess)
 dev.off()
 
@@ -209,7 +209,7 @@ full_per_excess <- (op_per_excess | virtual_per_excess) +
   plot_layout(guides = "collect") & 
   theme(legend.position = "bottom")
 
-png(paste0(rootdir_sp_kaiser_la, "output/full_per_excess.png"), width = 20, height = 22, units = "in", res = 300)
+png(paste0(rootdir_sp_kaiser_la, "output/may2025/full_per_excess.png"), width = 20, height = 22, units = "in", res = 300)
 print(full_per_excess)
 dev.off()
 
@@ -222,7 +222,7 @@ full_pct_excess <- (op_pct_excess | virtual_pct_excess) +
   plot_layout(guides = "collect") & 
   theme(legend.position = "bottom")
 
-png(paste0(rootdir_sp_kaiser_la, "output/full_pct_excess.png"), width = 20, height = 22, units = "in", res = 300)
+png(paste0(rootdir_sp_kaiser_la, "output/may2025/full_pct_excess.png"), width = 20, height = 22, units = "in", res = 300)
 print(full_pct_excess)
 dev.off()
 
