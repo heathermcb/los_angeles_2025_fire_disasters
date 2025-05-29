@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:3/4/25------------------------------------------#
+#-------------------------Date:5/29/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -15,10 +15,8 @@
 rm(list = ls())
 pacman::p_load(here)
 
-# Server directories
-inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
+# set paths
+source("paths.R")
 
 # load data ---------------------------------------------------
 # List of dataset names

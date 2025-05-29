@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:2/28/25------------------------------------------#
+#-----------------Last update:5/29/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -14,17 +14,10 @@
 # load libraries ----------------------------------------------------------------
 rm(list = ls())
 set.seed(0112358)
-pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc)
+pacman::p_load(here, tidymodels, tidyverse, modeltime, timetk, tictoc, here)
 
-## nina directories
-#inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
-#outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
-#mod <- "~/Desktop/projects/casey cohort/LA-wildfires/data/model-output/"
-
-# Server directories
-inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
+# set paths
+source("paths.R")
 
 # ensure consistent numeric precision ----------------------------------------------
 options(digits = 7)
@@ -47,7 +40,7 @@ for (dataset_name in datasets) {
   # Loop through each encounter type and create a recipe
   for (encounter_type in encounter_types) {
     
-    df_train_test <-  paste0(mod,"df-train-test_sf_", dataset_name, ".csv")
+    df_train_test <- here(mod, paste0("df-train-test_sf_", dataset_name, ".csv"))
     
     df_train_test <- read.csv(here(df_train_test)) %>%
       mutate(date = as.Date(date))
@@ -70,6 +63,7 @@ for (dataset_name in datasets) {
         #assess = "57 days", # for Virtual/Resp 
         assess = "75 days", 
         cumulative = TRUE,
+        skip = "75 days",      # same as the assess period to avoid overlapping
         date_var = date
       )
     

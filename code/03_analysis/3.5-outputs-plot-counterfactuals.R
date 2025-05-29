@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:3/4/25------------------------------------------#
+#-----------------Last update:5/29/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -16,19 +16,17 @@
 rm(list = ls())
 pacman::p_load(tidyverse, janitor, data.table, fst, openxlsx, here)
 
-# Server directories
-inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
-
+# set paths
+source("paths.R")
 
 # load data ---------------------------------------------------
 # List of dataset names
-datasets<- c( "df_Virtual_high")
+datasets<- c( "df_Virtual_high", "df_Virtual_moderate")
 #datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
 
+
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
+encounter_types <- c("num_enc_resp")
 #encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # set paths ---------------------------------------------------
@@ -41,7 +39,7 @@ for (dataset_name in datasets) {
   for (encounter_type in encounter_types) {
     
 # load original data and forecasted predictions -------------------------------------
-    forecast_filename <- paste0(outp, "3.2-final-preds_", dataset_name, "_", encounter_type, ".rds")
+    forecast_filename <- here(outp, paste0( "3.2-final-preds_", dataset_name, "_", encounter_type, ".rds"))
     
     df_forecast <- readRDS(here(forecast_filename))
 
@@ -50,11 +48,11 @@ source(here("code/03_analysis/", "3.4-func-plot-counterfactuals.R"))
 
 # generate counterfactual plots ---------------------------------------------------
 plot_phxgb <- func_plot_counterfactual_boot_noci(df_forecast, model_name = "PROPHETXGB", start_time=1,
-                                            intervention_time = 251,  encounter_type = encounter_type, #intervention_time= 191 for Virtual resp
+                                            intervention_time = 191,  encounter_type = encounter_type, #intervention_time= 191 for Virtual resp intervention_time = 251 for other
                                             dataset_name = dataset_name)
 
 # save the plot ---------------------------------------------------
-    plot_filename <- paste0(outp, "3.5-plot-counterfac-phxgb-boot", dataset_name, "_", encounter_type, ".png")
+    plot_filename <- here(outp, paste0( "3.5-plot-counterfac-phxgb-boot", dataset_name, "_", encounter_type, ".png"))
     
     ggsave(here(plot_filename),
         plot_phxgb,
