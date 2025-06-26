@@ -27,21 +27,115 @@ rootdir_sp <- paste0("/Users/laurenwilner/Library/CloudStorage/OneDrive-SharedLi
 rootdir_sp_studies <-  paste0(rootdir_sp, "studies/")
 rootdir_sp_kaiser_la <- paste0(rootdir_sp_studies, "kaiser_la/")
 
-results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_9may2025.csv")) %>% 
+
+# process results data ---------------------------
+results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_by_day_61725.csv")) %>%
+  mutate(
+    date = date,
+    encounter_type = encounter_type,
+    dataset_name = dataset_name,
+    expected_CI = expected_CI,
+    excess_CI = excess_CI,
+    excess_pct_CI = excess_pct_CI,
+    excess_per1000_CI = excess_per1000_CI,
+
+    # extract values into three separate cols: expected
+    expected = as.numeric(gsub("\\s*\\(.*$", "", expected_CI)),  # number before parentheses, remove any spaces
+    expected_low = as.numeric(gsub(".*\\(\\s*([0-9.-]+)\\s*,.*", "\\1", expected_CI)),  # first number in parentheses
+    expected_up = as.numeric(gsub(".*,\\s*([0-9.-]+)\\s*\\).*", "\\1", expected_CI)),  # second number in parentheses
+    
+    # extract values into three separate cols: excess
+    excess = as.numeric(gsub("\\s*\\(.*", "", excess_CI)),  # number before parentheses
+    excess_low = as.numeric(gsub(".*\\(([0-9.-]+),.*", "\\1", excess_CI)),  # first number in parentheses
+    excess_up = as.numeric(gsub(".*,\\s*([0-9.-]+)\\).*", "\\1", excess_CI)),  # second number in parentheses
+    
+    # extract values into three separate cols: excess pct
+    excess_pct = as.numeric(gsub("\\s*\\(.*", "", excess_pct_CI)),
+    excess_low_pct = as.numeric(gsub(".*\\(([0-9.-]+),.*", "\\1", excess_pct_CI)),
+    excess_up_pct = as.numeric(gsub(".*,\\s*([0-9.-]+)\\).*", "\\1", excess_pct_CI)),
+    
+    # extract values into three separate cols: excess per1000 [not using so leaving it]
+    excess_per1000_CI = as.numeric(gsub("\\s*\\(.*", "", excess_per1000_CI))
+  ) %>%
+  select(
+    date,
+    encounter_type, 
+    dataset_name,
+    expected_CI,
+    excess_CI, 
+    excess_pct_CI,
+    excess_per1000_CI,
+    expected,
+    expected_low,
+    expected_up,
+    excess,
+    excess_low, 
+    excess_up,
+    excess_pct,
+    excess_low_pct,
+    excess_up_pct
+  ) %>%   
   mutate(dataset_name = str_remove(dataset_name, "^df_")) %>%
   separate(dataset_name, into = c("visit_type", "exposure"), sep = "_", remove = FALSE) %>% 
   mutate_at(c("exposure", "visit_type", "encounter_type"), as.factor)  %>% 
   mutate(visit_encounter = paste0(visit_type, "_", encounter_type)) %>% 
   mutate(exposure = ifelse(exposure == "moderate", "Moderately", "Highly"),
         date = as.Date(date, format = "%m/%d/%y"), 
-        Weekday = weekdays(date))
+        Weekday = weekdays(date)) %>% 
+  # filter to just the first week 
+  filter(date >= "2025-01-07" & date <= "2025-01-13")
 
-count_results <- read_csv(paste0(rootdir_prj, "excess_enc_table.csv"))
+# process weekly change data ---------------------------
+# these will be appended to the end of the tables
+weekly_change_pct <- read_csv(paste0(rootdir_sp_kaiser_la, "results_first_week_61725.csv")) %>% 
+  filter(dataset_name != "df_Virtual_least") %>%
+  mutate(
+    # round all decimal numbers
+    excess_pct_CI = stringr::str_replace_all(excess_pct_CI, "\\d+\\.\\d+", function(x) as.character(round(as.numeric(x)))),
+    # add percent signs
+    excess_pct_CI = gsub("(\\d+)(?=\\s|,|\\))", "\\1%", excess_pct_CI, perl = TRUE)
+  ) %>%
+  select(period, dataset_name, encounter_type, excess_pct_CI) %>%
+  pivot_wider(
+    names_from = encounter_type,
+    values_from = excess_pct_CI
+  ) %>% 
+  rename("All-cause" = num_enc,
+         "Cardiovascular" = num_enc_cardio,
+         "Respiratory" = num_enc_resp,
+         "Neuropsychiatric" = num_enc_neuro,
+         "Injury" = num_enc_injury) %>%
+  mutate("date" = "Weekly change", "Weekday" = "") %>% 
+  select(date, Weekday, everything()) %>% 
+  mutate("metric" = "pct") %>% 
+  mutate(visit_type = ifelse(grepl("Virtual", dataset_name), "Virtual", "OP"),
+         exposure = ifelse(grepl("high", dataset_name), "Highly", "Moderately")) %>% 
+  select(-c("period", "dataset_name"))
+
+
+weekly_change_abs <- read_csv(paste0(rootdir_sp_kaiser_la, "results_first_week_61725.csv")) %>% 
+  filter(dataset_name != "df_Virtual_least") %>%
+  select(period, dataset_name, encounter_type, excess_CI) %>%
+  pivot_wider(
+    names_from = encounter_type,
+    values_from = excess_CI
+  ) %>% 
+  rename("All-cause" = num_enc,
+         "Cardiovascular" = num_enc_cardio,
+         "Respiratory" = num_enc_resp,
+         "Neuropsychiatric" = num_enc_neuro,
+         "Injury" = num_enc_injury) %>%
+  mutate("date" = "Weekly change", "Weekday" = "") %>% 
+  select(date, Weekday, everything()) %>% 
+  mutate("metric" = "abs") %>%
+  mutate(visit_type = ifelse(grepl("Virtual", dataset_name), "Virtual", "OP"),
+         exposure = ifelse(grepl("high", dataset_name), "Highly", "Moderately")) %>% 
+  select(-c("period", "dataset_name"))
 
 
 okeefe <- c("#fbe3c2", "#f2c88f", "#ecb27d", "#e69c6b", "#d37750", "#b9563f", "#611F10")
 
-# helper functions ---------------------------
+# helper function ---------------------------
 
 ## function to create table dfs
 create_encounter_table <- function(df, exposure_level, visit, metric_suffix = "") {
@@ -99,152 +193,101 @@ create_encounter_table <- function(df, exposure_level, visit, metric_suffix = ""
   return(result_table)
 }
 
-## function to make the pretty table for paper
-make_pretty_table <- function(result_table, filename) {
-  
-  title_label <- if(grepl("_pct", filename)){
-    md("*Percent (95% eCI)*")
-    } else {
-    md("*n (95% eCI)*")
-    }
-
-  # make the gt table
-  pretty_table <- result_table %>%
-    # select(-c(title)) %>% 
-    rename(Date = date) %>%
-    gt() %>%
-    tab_header(title = title_label) %>% 
-
-    # set custom widths for columns
-    cols_width(
-      `Date` ~ px(115),              # Date column width
-      `Weekday` ~ px(140),           # Weekday column width
-      `All-cause` ~ px(120),         # All-cause column width (wider for the CI values)
-      `Cardiovascular` ~ px(120),    # Cardiovascular column width
-      `Respiratory` ~ px(120),       # Respiratory column width
-      `Injury` ~ px(120),            # Injury column width
-      `Neuropsychiatric` ~ px(125)   # Neuropsychiatric column width
-    ) %>% 
-
-    # left justify date
-    cols_align(
-      align = "left"
-    ) %>% 
-    
-    # use a theme! set up the table style
-    opt_row_striping() %>%
-    tab_options(
-      heading.background.color = okeefe[1],
-      heading.title.font.size = 18,
-      heading.padding = px(10), 
-      table.font.size = 14,
-      column_labels.background.color = okeefe[3],
-      column_labels.font.weight = "bold",
-      table.border.top.style = "hidden",
-      table.border.bottom.style = "hidden")
-  
-  # this is something webshot needs to work...
-  options(chromote.headless = "new")
-
-  # save the table as html using cat 
-   pretty_table %>% 
-    as_raw_html() %>% 
-    cat(file = filename_html)
-  
-  # save the table as png
-    # doing it this way becuase i couldnt get the dpi high enough with gtsave
-  webshot2::webshot(
-    url = filename_html,
-    file = filename,
-    zoom = 7,         # apparently this is approx 300 DPI
-    selector = "table"  # only capture the table
-  )
-
-  # return table for viewing pleasure
-  return(pretty_table)
-}
-
-
-
 # make the tables finally ---------------------------
 
-## make the 8 combinations of tables 
+## make the 4 combinations of tables (combining percent and absolute)
 visit_types <- c("OP", "Virtual")
 exposure_levels <- c("Moderately", "Highly")
-metrics <- c("", "_pct")
 
 for(visit in visit_types) {
   for(exposure_level in exposure_levels) {
-    for(metric in metrics) {
-      print(paste0("Creating table for ", visit, " visits, ", exposure_level, " exposed, ", metric))
-      # create the table
-      result_table <- create_encounter_table(results, exposure_level, visit, metric)
+    print(paste0("Creating combined table for ", visit, " visits, ", exposure_level, " exposed"))
+    
+    # create the absolute table
+    result_table_abs <- create_encounter_table(results, exposure_level, visit, "") %>% 
+      mutate(date = as.character(date))
+    # rbind the absolute table with the weekly change data
+    result_table_abs <- bind_rows(result_table_abs, weekly_change_abs %>% filter(visit_type == visit, exposure == exposure_level)) %>% 
+      select(-c("metric", "visit_type", "exposure"))
+    
+    # create the percent table
+    result_table_pct <- create_encounter_table(results, exposure_level, visit, "_pct") %>% 
+      mutate(date = as.character(date)) 
+    # rbind the pct table with the weekly change data
+    result_table_pct <- bind_rows(result_table_pct, weekly_change_pct %>% filter(visit_type == visit, exposure == exposure_level)) %>% 
+      select(-c("metric", "visit_type", "exposure"))
+
+    
+    # combine the tables by merging the encounter type columns
+    combined_table <- result_table_abs %>%
+      left_join(result_table_pct, by = c("date", "Weekday"), suffix = c("_abs", "_pct")) %>%
+      mutate(
+        `All-cause` = paste0(`All-cause_pct`, "<br>", `All-cause_abs`),
+        `Cardiovascular` = paste0(`Cardiovascular_pct`, "<br>", `Cardiovascular_abs`),
+        `Injury` = paste0(`Injury_pct`, "<br>", `Injury_abs`),
+        `Neuropsychiatric` = paste0(`Neuropsychiatric_pct`, "<br>", `Neuropsychiatric_abs`),
+        `Respiratory` = paste0(`Respiratory_pct`, "<br>", `Respiratory_abs`)
+      ) %>%
+      select(date, Weekday, `All-cause`, Cardiovascular, Injury, Neuropsychiatric, Respiratory)
+    
+    # make the pretty table
+    filename <- paste0(rootdir_sp_kaiser_la, "output/june2025/table_", visit, "_", exposure_level, "_combined.png")
+    filename_html <- paste0(rootdir_sp_kaiser_la, "output/june2025/table_", visit, "_", exposure_level, "_combined.html")
+    
+    # modify the pretty table function call to handle combined data
+    pretty_table <- combined_table %>%
+      rename(Date = date) %>%
+      gt() %>%
+      tab_header(title = md("*Excess percent (95% eCI)<br>Excess count (95% eCI)*")) %>% 
+
+      # set custom widths for columns
+      cols_width(
+        `Date` ~ px(115),              # Date column width
+        `Weekday` ~ px(100),           # Weekday column width
+        `All-cause` ~ px(180),         # All-cause column width (wider for combined values)
+        `Cardiovascular` ~ px(180),    # Cardiovascular column width
+        `Respiratory` ~ px(180),       # Respiratory column width
+        `Injury` ~ px(180),            # Injury column width
+        `Neuropsychiatric` ~ px(185)   # Neuropsychiatric column width
+      ) %>% 
+
+      # left justify date
+      cols_align(
+        align = "left"
+      ) %>% 
       
-      # make the pretty table
-      filename <- paste0(rootdir_sp_kaiser_la, "output/may2025/table_", visit, "_", exposure_level, metric, ".png")
-      filename_html <- paste0(rootdir_sp_kaiser_la, "output/may2025/table_", visit, "_", exposure_level, metric, ".html")
-      pretty_table <- make_pretty_table(result_table, filename)
+      # enable HTML formatting for the data columns
+      fmt_markdown(columns = c(`All-cause`, Cardiovascular, Injury, Neuropsychiatric, Respiratory)) %>% 
       
-    }
+      # use a theme! set up the table style
+      opt_row_striping() %>%
+      tab_options(
+        heading.background.color = okeefe[1],
+        heading.title.font.size = 18,
+        heading.padding = px(10), 
+        table.font.size = 14,
+        column_labels.background.color = okeefe[3],
+        column_labels.font.weight = "bold",
+        table.border.top.style = "hidden",
+        table.border.bottom.style = "hidden")
+    
+    # this is something webshot needs to work...
+    options(chromote.headless = "new")
+
+    # save the table as html using cat 
+     pretty_table %>% 
+      as_raw_html() %>% 
+      cat(file = filename_html)
+    
+    # save the table as png
+      # doing it this way becuase i couldnt get the dpi high enough with gtsave
+webshot2::webshot(
+  url = filename_html,
+  file = filename,
+  zoom = 7,
+  selector = "table",
+  vwidth = 1400,
+  delay = 2
+)
   }
 }
-
-
-## make summary count table 
-# this one is pretty different so just using the code above but not running the function. good enough for a same day turnaround... 
-pretty_table <- count_results %>%
-    rename(`Exposure group` = exposure_group, 
-            `Encounter type` = encounter_type) %>%
-    gt() %>%
-    tab_header(title = "Estimated excess encounters") %>% 
-
-    # set custom widths for columns
-    cols_width(
-      `Exposure group` ~ px(140),    # exp group column width
-      `Encounter type` ~ px(140),    # encounter type column width
-      `All-cause` ~ px(120),         # All-cause column width (wider for the CI values)
-      `Cardiovascular` ~ px(120),    # Cardiovascular column width
-      `Respiratory` ~ px(120),       # Respiratory column width
-      `Injury` ~ px(120),            # Injury column width
-      `Neuropsychiatric` ~ px(125)   # Neuropsychiatric column width
-    ) %>% 
-
-    # center align all columns
-    cols_align(
-      align = "center"
-    ) %>% 
-    
-    # center align column labels
-    tab_style(
-      style = cell_text(align = "center"),
-      locations = cells_column_labels()
-    ) %>%
-    
-    # use a theme! set up the table style
-    opt_row_striping() %>%
-    tab_options(
-      heading.background.color = okeefe[1],
-      heading.title.font.size = 18,
-      heading.padding = px(10), 
-      table.font.size = 14,
-      column_labels.background.color = okeefe[3],
-      column_labels.font.weight = "bold",
-      table.border.top.style = "hidden",
-      table.border.bottom.style = "hidden")
-
-  filename_count_png <- paste0(rootdir_sp_kaiser_la, "output/table_count.png")
-  filename_count_html <- paste0(rootdir_sp_kaiser_la, "output/table_count.html")
-  # save the table as html using cat 
-   pretty_table %>% 
-    as_raw_html() %>% 
-    cat(file = filename_count_html)
-  
-  # save the table as png
-    # doing it this way becuase i couldnt get the dpi high enough with gtsave
-  webshot2::webshot(
-    url = filename_count_html,
-    file = filename_count_png,
-    zoom = 7,         # apparently this is approx 300 DPI
-    selector = "table"  # only capture the table
-  )
-
