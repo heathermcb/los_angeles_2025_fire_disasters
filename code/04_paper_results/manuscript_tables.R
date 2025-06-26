@@ -1,7 +1,7 @@
 ## ---------------------------
 ## LBW
 ## created: 2025-02-27
-## last updated: 22 Feb 25
+## last updated: 25 June 25
 ## goal: produce manuscript tables
 ## breakdown: 
 ##       1. 8 tables total, all combos of the below: 
