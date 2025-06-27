@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:5/29/25------------------------------------------#
+#-----------------Last update:6/27/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -21,12 +21,12 @@ source("paths.R")
 
 # load data ---------------------------------------------------
 # List of dataset names
-#datasets<- c( "df_Virtual_high")
+#datasets<- c( "df_Virtual_high", "df_Virtual_moderate", "df_Virtual_least")
 datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
 
 
 # List of encounter types to loop through
-#encounter_types <- c("num_enc")
+#encounter_types <- c("num_enc_resp")
 encounter_types <- c( "num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # Loop through each dataset and load the models and process results
@@ -93,7 +93,7 @@ for (dataset_name in datasets) {
              rsv = rsv * 10000000,
              sars.cov2 = sars.cov2*10000000) %>%     
       mutate(across(where(is.numeric), as.integer)) %>%
-      # filter(date>= "2023-01-01") %>% # for resp Virtual
+       #filter(date>= "2023-01-01") %>% # for resp Virtual
       arrange(date)
     
     workflow_best <- model_tbl_best$.model[[1]]  # Extract the first model

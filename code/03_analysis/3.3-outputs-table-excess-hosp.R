@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-------------------------Date:5/29/25------------------------------------------#
+#-------------------------Date:6/27/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -20,13 +20,13 @@ source("paths.R")
 
 # load data ---------------------------------------------------
 # List of dataset names
-datasets<- c( "df_Virtual_high")
-#datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
+datasets<- c("df_Virtual_high", "df_Virtual_moderate",  "df_OP_high", "df_OP_moderate") 
+#datasets<- c( "df_Virtual_high", "df_Virtual_moderate", "df_Virtual_least")
 
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
-#encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
+encounter_types <- c(  "num_enc","num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc_resp")
 
 # Initialize an empty list to store results
 results_list <- list()
@@ -100,7 +100,7 @@ for (dataset_name in datasets) {
                                     ")"),
              excess_per1000_CI = paste0(round(excess_per1000, 4),
                                         " (", round(excess_low_per1000, 4), ", ", round(excess_up_per1000, 4), ")"))  |>
-      # dplyr::select(date, observed, expected_CI, excess_CI, excess_pct_CI, excess_per1000_CI, dataset_name, encounter_type)
+       #dplyr::select(date, observed, expected_CI, excess_CI, excess_pct_CI, excess_per1000_CI, dataset_name, encounter_type)
       dplyr::select(period, observed, expected_CI, excess_CI, excess_pct_CI, excess_per1000_CI, dataset_name, encounter_type)
     
     

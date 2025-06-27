@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:5/29/25------------------------------------------#
+#-----------------Last update:6/27/25------------------------------------------#
 
 
 # Code adapted from the following project:
@@ -26,7 +26,7 @@ options(scipen = 999)
 
 # load data ---------------------------------------------------
 # List of dataset names
-#datasets<- c( "df_Virtual_high")
+#datasets<- c( "df_Virtual_high", "df_Virtual_moderate", "df_Virtual_least")
 datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
 
 # List of encounter types to loop through
@@ -66,9 +66,7 @@ for (dataset_name in datasets) {
       mutate(across(where(is.numeric), as.integer)) %>%
       #filter(date>= "2023-01-01") %>% # for respiratory only
       arrange(date)
-      # select(date, encounter_type, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period) %>%      
-
-  
+    
 # -----------------------------------------------
  #  # Load Prophet-XGBoost model
     # Create a temporary environment
@@ -76,7 +74,7 @@ for (dataset_name in datasets) {
   
   #Prophet + XGBoost
    set.seed(0112358)
-    
+  
   phxgb_filename <- here(outp, paste0( "1.1-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData"))
   load(here(phxgb_filename), envir = temp_env)
  print(paste("Loaded Prophet-XGBoost model for",encounter_type,  dataset_name))
@@ -87,115 +85,76 @@ for (dataset_name in datasets) {
  tune_results_phxgb <- temp_env$tune_results_phxgb
  splits <- temp_env$splits  
  
- wflw_fit_phxgb_tuned <- wflw_phxgb_tune |>
+ wflw_fit <- wflw_phxgb_tune |>
    finalize_workflow(select_best(tune_results_phxgb, metric = "rmse")) |>
    fit(training(splits))
  
+ # generate modeltime table ---------------------------------------------------
+ model_tbl <- modeltime_table(wflw_fit)
  
- # step-2: generate modeltime table ---------------------------------------------------
- set.seed(0112358)
- model_tbl_best_all <- modeltime_table(
-   wflw_fit_phxgb_tuned
- )
+ # Training error metrics ---------------------------------------------------
+ training_preds <- model_tbl %>%
+   modeltime_calibrate(new_data = training(splits)) %>%
+   select(.model_desc, .calibration_data) %>%
+   unnest(cols = c(.calibration_data)) %>%
+   mutate(.model_desc = "PROPHETXGB")
  
-# step-1: generate training error rates -----------------------------------------------
-## calibrate best models on training data and format model descriptions
-training_preds <- model_tbl_best_all |>
-  modeltime_calibrate(
-    new_data = training(splits),  #> # Create month_day variable based on date
-    quiet = FALSE
-  ) |>
-  select(.model_desc, .calibration_data) |>
-  unnest(cols = c(.calibration_data)) |>
-  mutate(.model_desc = case_when(
-    stringr::str_detect(.model_desc, "REGRESSION WITH ARIMA") ~ "ARIMA",
-    stringr::str_detect(.model_desc, "ARIMA") & stringr::str_detect(.model_desc, "XGBOOST") ~ "ARIMAXGB",
-    stringr::str_detect(.model_desc, "PROPHET") ~ "PROPHETXGB",
-    stringr::str_detect(.model_desc, "NNAR") ~ "NNETAR",
-    TRUE ~ .model_desc
-  ))
-
-## generate training error metrics
-df_training_metrics <- training_preds |>
-  group_by(.model_desc) |>
-  summarise(
-    mdae = Metrics::mdae(.actual, .prediction),
-    mae = Metrics::mae(.actual, .prediction),
-    rmse = Metrics::rmse(.actual, .prediction),
-    mape = Metrics::mape(.actual, .prediction),
-    rse = Metrics::rse(.actual, .prediction),
-    smape = Metrics::smape(.actual, .prediction),
-    r2 = round(1 - sum((.actual - .prediction)^2) / sum((.actual - mean(.actual))^2), 2)
-  ) %>%
-  # Add dataset and encounter type information
-  mutate(
-    dataset = dataset_name,
-    encounter_type = encounter_type,
-    data_type = "training"
-  )
-
-# Save training predictions
-
-training_errors_filename <- here(outp, paste0("2.1-model-training-errors_", dataset_name, "_", encounter_type, ".rds"))
-
-df_training_metrics |> saveRDS(here(training_errors_filename))
-print(paste("Saved training error metrics for", encounter_type, dataset_name))
-
-# step-2: generate test error rates ------------------------------------------
-## calibrate best models on test data and format model descriptions
-test_preds <- model_tbl_best_all |>
-  modeltime_calibrate(
-    new_data = testing(splits),
-    # id = "county",
-    quiet = FALSE
-  ) |>
-  select(.model_desc, .calibration_data) |>
-  unnest(cols = c(.calibration_data)) |>
-  mutate(.model_desc = case_when(
-    stringr::str_detect(.model_desc, "REGRESSION WITH ARIMA") ~ "ARIMA",
-    stringr::str_detect(.model_desc, "ARIMA") & stringr::str_detect(.model_desc, "XGBOOST") ~ "ARIMAXGB",
-    stringr::str_detect(.model_desc, "PROPHET") ~ "PROPHETXGB",
-    stringr::str_detect(.model_desc, "NNAR") ~ "NNETAR",
-    TRUE ~ .model_desc
-  ))
-
-## generate test error metrics
-df_testing_metrics <- test_preds |>
-  group_by(.model_desc) |>
-  summarise(
-    mdae = Metrics::mdae(.actual, .prediction),
-    mae = Metrics::mae(.actual, .prediction),
-    rmse = Metrics::rmse(.actual, .prediction),
-    mape = Metrics::mape(.actual, .prediction),
-    rse = Metrics::rse(.actual, .prediction),
-    smape = Metrics::smape(.actual, .prediction),
-    r2 = round(1 - sum((.actual - .prediction)^2) / sum((.actual - mean(.actual))^2), 2)
-  ) %>%
-# Add dataset and encounter type information
-mutate(
-  dataset = dataset_name,
-  encounter_type = encounter_type,
-  data_type = "testing"
-)
-
-print(df_training_metrics)
-print(df_testing_metrics)
-
-# Combine training and testing results
-results_list[[length(results_list) + 1]] <- df_training_metrics
-results_list[[length(results_list) + 1]] <- df_testing_metrics
-
-# Save test predictions
-test_errors_filename <- here(outp, paste0( "2.1-model-test-errors_", dataset_name, "_", encounter_type, ".rds"))
-
-df_testing_metrics |> saveRDS(here(test_errors_filename))
-print(paste("Saved test error metrics for", encounter_type, dataset_name))
+ df_training_metrics <- training_preds %>%
+   group_by(.model_desc) %>%
+   summarise(
+     mdae = Metrics::mdae(.actual, .prediction),
+     mae = Metrics::mae(.actual, .prediction),
+     rmse = Metrics::rmse(.actual, .prediction),
+     mape = Metrics::mape(.actual, .prediction),
+     rse = Metrics::rse(.actual, .prediction),
+     smape = Metrics::smape(.actual, .prediction),
+     r2 = round(1 - sum((.actual - .prediction)^2) / sum((.actual - mean(.actual))^2), 2)
+   ) %>%
+   mutate(
+     dataset = dataset_name,
+     encounter_type = encounter_type,
+     data_type = "training"
+   )
+ 
+ # Testing error metrics ----------------------------------------------------
+ test_preds <- model_tbl %>%
+   modeltime_calibrate(new_data = testing(splits)) %>%
+   select(.model_desc, .calibration_data) %>%
+   unnest(cols = c(.calibration_data)) %>%
+   mutate(.model_desc = "PROPHETXGB")
+ 
+ df_testing_metrics <- test_preds %>%
+   group_by(.model_desc) %>%
+   summarise(
+     mdae = Metrics::mdae(.actual, .prediction),
+     mae = Metrics::mae(.actual, .prediction),
+     rmse = Metrics::rmse(.actual, .prediction),
+     mape = Metrics::mape(.actual, .prediction),
+     rse = Metrics::rse(.actual, .prediction),
+     smape = Metrics::smape(.actual, .prediction),
+     r2 = round(1 - sum((.actual - .prediction)^2) / sum((.actual - mean(.actual))^2), 2)
+   ) %>%
+   mutate(
+     dataset = dataset_name,
+     encounter_type = encounter_type,
+     data_type = "testing"
+   )
+ 
+ print(df_training_metrics)
+ print(df_testing_metrics)
+ 
+ # Append results
+ results_list[[length(results_list) + 1]] <- df_training_metrics
+ results_list[[length(results_list) + 1]] <- df_testing_metrics
+ 
+ # Save individual metrics
+ saveRDS(df_training_metrics, here(outp, paste0("2.1-model-training-errors_", dataset_name, "_", encounter_type, ".rds")))
+ saveRDS(df_testing_metrics, here(outp, paste0("2.1-model-test-errors_", dataset_name, "_", encounter_type, ".rds")))
   }
 }
 
-# Combine all results into a single dataframe
+# Combine all metrics into one table ------------------------------------------
 results_train_test_metrics <- bind_rows(results_list)
 
-# Save the final model performance metrics in a csv
-final_results_filename <- here(outp, paste0( "model_performance_metrics.csv"))
-write.csv(results_train_test_metrics, here(final_results_filename))
+# Save final performance metrics
+write.csv(results_train_test_metrics, here(outp, "performance_metrics.csv"), row.names = FALSE)

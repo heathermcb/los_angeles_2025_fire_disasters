@@ -1,7 +1,7 @@
 # -----------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:5/29/25------------------------------------------#
+#-----------------Last update:6/27/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -26,13 +26,13 @@ options(scipen = 999)
 # Loop through datasets --------------------------------------------------------
 
 # List of dataset names
-datasets<- c( "df_Virtual_high")
-#datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
+#datasets<- c( "df_Virtual_high", "df_Virtual_moderate", "df_Virtual_least")
+datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
 
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
-#encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc_resp")
+encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # Iterate over each dataset
 for (dataset_name in datasets) {
@@ -53,7 +53,7 @@ for (dataset_name in datasets) {
              rsv = rsv * 10000000,
              sars.cov2 = sars.cov2*10000000) %>%
       mutate(across(where(is.numeric), as.integer)) %>%
-      # filter(date>= "2023-01-01") %>% # for respiratory Virtual only
+       filter(date>= "2023-01-01") %>% # for respiratory Virtual only
       arrange(date)
     
     ## split data into training and test sets -------------------------------------
@@ -63,7 +63,8 @@ for (dataset_name in datasets) {
         #assess = "57 days", # for Virtual/Resp 
         assess = "75 days", 
         cumulative = TRUE,
-        skip = "75 days",      # same as the assess period to avoid overlapping
+        #skip = "57 days",      ## for Virtual/Resp- same as the assess period to avoid overlapping
+        skip = "75 days",    # same as the assess period to avoid overlapping
         date_var = date
       )
     
@@ -71,7 +72,7 @@ for (dataset_name in datasets) {
     set.seed(0112358)
     resamples_kfold <- training(splits) |> 
       time_series_cv(
-        # assess = "25 days",     # for Virtual/Resp 
+        #assess = "25 days",     # for Virtual/Resp 
         assess = "40 days",     
         slice_limit = 8,        
         cumulative = TRUE       
@@ -128,7 +129,7 @@ for (dataset_name in datasets) {
                  set.seed = 0112358,
                  early_stop = TRUE,
                  validation = 0.2)
-    # validation = 0.3) # for Virtual resp
+                #validation = 0.3) # for Virtual resp
     
     # generate grid for tuning ---------------------------------------------------
     
@@ -137,7 +138,7 @@ for (dataset_name in datasets) {
         update(
           # XGBoost parameters 
           mtry = mtry(range = c(3, 10)),
-          # mtry = mtry(range = c(2, 6)), #resp Virtual only
+          #mtry = mtry(range = c(2, 6)), #resp Virtual only
           
           min_n = min_n(range = c(15L, 30L)),
           tree_depth = tree_depth(range = c(3, 8)),
