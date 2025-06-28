@@ -1,29 +1,24 @@
 #------------------------------------------------------------------------------#
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:3/4/25------------------------------------------#
+#-----------------Last update:6/27/25------------------------------------------#
 
 ## Purpose: Prepping data for ITS analysis
 #---------------Load packages -------------------------------------------------#
 # load packages
 if (!requireNamespace('pacman', quietly = TRUE)) {install.packages('pacman')}
-pacman::p_load(readr, dplyr, tidyr, purrr, lubridate, MMWRweek)
+pacman::p_load(readr, dplyr, tidyr, purrr, lubridate, MMWRweek, here)
 
-# Nina directories
-#inp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/raw-data/"
-#outp <- "~/Desktop/projects/casey cohort/LA-wildfires/data/processed-data/"
-
-# Server directories
-inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
+# set paths
+source("paths.R")
 
 #---------------------- Data upload and prep-----------------------------------#
 # upload dataset
-df <- read_csv(paste0(inp,"ENC_EXP_DAILY_02232025.csv"))
-resp_virus<- read_csv(paste0(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
+df <- read_csv(here(inp,"ENC_EXP_DAILY_02232025.csv"))
+resp_virus<- read_csv(here(inp,"wastewater_resp_illness_data/resp-virus-dat_all.csv"))
 
 # add meterological covariates
-cov <- read_csv(paste0(inp, "gridmet_cov_exp_level.csv")) %>%
+cov <- read_csv(here(inp, "gridmet_cov_exp_level.csv")) %>%
   mutate(encounter_dt = date) %>%
   select(-date)
 
@@ -115,7 +110,7 @@ for (dataset_name in names(outcome_enc_datasets)) {
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
            pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
   
-  write.csv(df_train_test, paste0(outp, "df-train-test_sf_", dataset_name, ".csv"), row.names = FALSE)
+  write.csv(df_train_test, here(mod, paste0( "df-train-test_sf_", dataset_name, ".csv")), row.names = FALSE)
   
   # Create df_all_cases dataset
   df_all_cases <- dataset %>%
@@ -128,7 +123,7 @@ for (dataset_name in names(outcome_enc_datasets)) {
     select(num_enc, num_enc_cardio, num_enc_resp, num_enc_neuro, num_enc_injury, date,
            pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, `influenza-a`, `influenza-b`, rsv, `sars-cov2`)
   
-  write.csv(df_all_cases, paste0(mod, "df-predict-sf_", dataset_name, ".csv"), row.names = FALSE)
+  write.csv(df_all_cases, here(mod, paste0("df-predict-sf_", dataset_name, ".csv")), row.names = FALSE)
 }
 
 #--------------- create denominator data for analysis----------------------------#
@@ -141,7 +136,7 @@ denom_df <- out_enc_data %>%
 # Print or save denom_df
 print(denom_df)
 
-write.csv(denom_df, paste0(mod, "denoms_df.csv"))
+write.csv(denom_df, here(mod, "denoms_df.csv"))
 
 # Clean up
 rm(list = ls())

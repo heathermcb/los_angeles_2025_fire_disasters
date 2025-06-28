@@ -1,7 +1,7 @@
 # -------------------------------------------------------------------------------
 #-------------Los Angeles Wildfires- ITS analysis------------------------------#   
 #-------------------------R code-----------------------------------------------#
-#-----------------Last update:2/28/25------------------------------------------#
+#-----------------Last update:6/27/25------------------------------------------#
 
 # Code adapted from the following project:
 
@@ -16,20 +16,18 @@ rm(list = ls())
 set.seed(0112358)
 pacman::p_load(here, tidymodels, tidyverse, modeltime)
 
-# Server directories
-inp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/data/01_raw/"
-mod <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/"
-outp <- "D:/Lara/los_angeles_2025_fires_rapid_response/los_angeles_2025_fire_disasters_exp/Outputs/final_results/"
+# set paths
+source("paths.R")
 
 # load data ---------------------------------------------------
 # List of dataset names
-datasets<- c( "df_Virtual_high")
-#datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
+#datasets<- c( "df_Virtual_high", "df_Virtual_moderate", "df_Virtual_least")
+datasets<- c("df_Virtual_high", "df_Virtual_moderate", "df_OP_high", "df_OP_moderate") 
 
 
 # List of encounter types to loop through
-encounter_types <- c("num_enc")
-#encounter_types <- c( "num_enc", "num_enc_resp", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
+#encounter_types <- c("num_enc_resp")
+encounter_types <- c( "num_enc", "num_enc_cardio",  "num_enc_neuro", "num_enc_injury")
 
 # Loop through each dataset and load the models and process results
 for (dataset_name in datasets) {
@@ -45,7 +43,7 @@ for (dataset_name in datasets) {
     #Prophet + XGBoost
     set.seed(0112358)
     
-    phxgb_filename <- paste0(outp, "1.1-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData")
+    phxgb_filename <- here(outp, paste0( "1.1-model-tune-phxgb-final_", dataset_name,"_", encounter_type,  ".RData"))
     load(here(phxgb_filename), envir = temp_env)
     print(paste("Loaded Prophet-XGBoost model for",encounter_type,  dataset_name))
     splits<-temp_env$splits
@@ -74,7 +72,7 @@ for (dataset_name in datasets) {
     options(scipen = 999)
     
     # load data ---------------------------------------------------
-    preintervention_filename <- paste0(mod,"df-train-test_sf_", dataset_name, ".csv") 
+    preintervention_filename <- here(mod, paste0("df-train-test_sf_", dataset_name, ".csv") )
     df_preintervention <- read.csv(here(preintervention_filename)) %>%
       mutate(date = as.Date(date)) %>%
       select(date, all_of(encounter_type), pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv, sars.cov2) %>%
@@ -86,7 +84,7 @@ for (dataset_name in datasets) {
       #filter(date>= "2023-01-01") %>% # for resp Virtual
       arrange(date)
     
-    all_cases_filename <-  paste0(mod,"df-predict-sf_", dataset_name, ".csv") 
+    all_cases_filename <-  here(mod, paste0("df-predict-sf_", dataset_name, ".csv") )
     df_all_cases <- read.csv(here(all_cases_filename)) %>%
       mutate(date = as.Date(date)) %>%
       select(date, all_of(encounter_type), sars.cov2, pr, tmmx, tmmn, rmin, rmax, vs, srad, postjan7, time_period, influenza.a, influenza.b, rsv) %>%
@@ -95,7 +93,7 @@ for (dataset_name in datasets) {
              rsv = rsv * 10000000,
              sars.cov2 = sars.cov2*10000000) %>%     
       mutate(across(where(is.numeric), as.integer)) %>%
-      # filter(date>= "2023-01-01") %>% # for resp Virtual
+       #filter(date>= "2023-01-01") %>% # for resp Virtual
       arrange(date)
     
     workflow_best <- model_tbl_best$.model[[1]]  # Extract the first model
@@ -129,7 +127,7 @@ for (dataset_name in datasets) {
     
     
     # save final predictions ---------------------------------------------------
-    final_pred_filename <- paste0(outp, "3.2-final-preds_", dataset_name, "_", encounter_type, ".rds")
+    final_pred_filename <- here(outp, paste0( "3.2-final-preds_", dataset_name, "_", encounter_type, ".rds"))
     df_forecast |> saveRDS(here(final_pred_filename))
   }  # End of encounter type loop
 }  # End of dataset loop
