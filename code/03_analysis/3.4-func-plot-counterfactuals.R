@@ -7,7 +7,7 @@
 
 # -------------------------------------------------------------------------------
 # @project: Two-stage interrupted time series design
-# @author: Arnab K. Dey, Yiqun Ma
+# @author: Arnab K. Dey , Yiqun Ma
 # @organization: Scripps Institution of Oceanography, UC San Diego
 # @description: This script contains functions to generate counterfactual plots
 # @date: Nov 12, 2024
