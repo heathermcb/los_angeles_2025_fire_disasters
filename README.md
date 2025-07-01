@@ -76,9 +76,3 @@ This script fits the model from the selected method to the entire data (includin
 
 3.3-outputs-table-excess-hosp.R
 This script computes the excess hospitalizations due to the wildfire and saves as a table.
-
-3.4-func-plot-counterfactuals.R
-This script contains functions to plot counterfactual and actual trends.
-
-3.5-outputs-plot-counterfactuals.R
-This script applies the function above and saves plots
