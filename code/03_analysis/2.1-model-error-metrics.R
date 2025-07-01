@@ -7,7 +7,7 @@
 # Code adapted from the following project:
 
 # @project: Two-stage interrupted time series design
-# @author: Arnab K. Dey (arnabxdey@gmail.com), Yiqun Ma
+# @author: Arnab K. Dey, Yiqun Ma
 # @organization: Scripps Institution of Oceanography, UC San Diego
 # @description: This script loads the modeltime table with best models and calculates training and testing error metrics
 # @date: Dec 16, 2024
