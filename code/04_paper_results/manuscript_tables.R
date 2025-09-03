@@ -29,7 +29,8 @@ rootdir_sp_kaiser_la <- paste0(rootdir_sp_studies, "kaiser_la/")
 
 
 # process results data ---------------------------
-results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_by_day_61725.csv")) %>%
+# results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_by_day_61725.csv")) %>%
+results <- read_csv(paste0(rootdir_sp_kaiser_la, "results_by_day_10km.csv")) %>%
   mutate(
     date = date,
     encounter_type = encounter_type,
